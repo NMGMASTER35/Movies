@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../services/supabaseClient';
 
 const MOVIES = [
@@ -81,6 +82,7 @@ const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adve
 const TYPES = ['All', 'Movie', 'Series'];
 
 export default function Home() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
@@ -89,6 +91,59 @@ export default function Home() {
   const [deliveryMethod, setDeliveryMethod] = useState('USB');
   const [requestMessage, setRequestMessage] = useState('');
   const [requestStatus, setRequestStatus] = useState('');
+  const [user, setUser] = useState(null);
+  const [authStatus, setAuthStatus] = useState('');
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthStatus('Missing Supabase configuration. Please check your environment settings.');
+      return;
+    }
+
+    let isMounted = true;
+
+    const hydrateSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (error) {
+        setAuthStatus(error.message);
+        return;
+      }
+
+      const activeUser = data?.session?.user ?? null;
+      setUser(activeUser);
+
+      if (!activeUser) {
+        router.push('/');
+      }
+    };
+
+    hydrateSession();
+
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const activeUser = session?.user ?? null;
+      setUser(activeUser);
+
+      if (!activeUser) {
+        router.push('/');
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      data?.subscription?.unsubscribe();
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (user?.email) {
+      setRequestEmail(user.email);
+    }
+  }, [user]);
 
   const featured = MOVIES.find((movie) => movie.featured) || MOVIES[0];
 
@@ -107,7 +162,9 @@ export default function Home() {
     event.preventDefault();
     setRequestStatus('');
 
-    if (!requestEmail || !selectedMovie) {
+    const requesterEmail = user?.email || requestEmail;
+
+    if (!requesterEmail || !selectedMovie) {
       setRequestStatus('Please enter your email to submit a request.');
       return;
     }
@@ -121,7 +178,8 @@ export default function Home() {
       const { error } = await supabase.from('requests').insert([
         {
           movie_id: selectedMovie.id,
-          user_id: requestEmail,
+          user_id: user?.id || requesterEmail,
+          requester_email: requesterEmail,
           type: selectedMovie.type,
           status: 'OPEN',
           message: requestMessage,
@@ -151,7 +209,10 @@ export default function Home() {
           <span>Requests</span>
           <span>Profile</span>
         </div>
+        {user && <div className="user-chip">{user.email}</div>}
       </nav>
+
+      {authStatus && <p className="status">{authStatus}</p>}
 
       <section className="hero">
         <div className="hero-content">
@@ -250,6 +311,7 @@ export default function Home() {
                     placeholder="you@example.com"
                     value={requestEmail}
                     onChange={(event) => setRequestEmail(event.target.value)}
+                    readOnly={Boolean(user?.email)}
                   />
                 </label>
                 <label>
