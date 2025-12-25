@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { supabase } from '../services/supabaseClient';
 
 const MOVIES = [
   {
@@ -111,22 +112,25 @@ export default function Home() {
       return;
     }
 
-    try {
-      const response = await fetch('/api/requests/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          movieId: selectedMovie.id,
-          userId: requestEmail,
-          type: selectedMovie.type,
-          message: requestMessage,
-          deliveryMethod,
-        }),
-      });
+    if (!supabase) {
+      setRequestStatus('Missing Supabase configuration. Please check your environment settings.');
+      return;
+    }
 
-      if (!response.ok) {
-        const payload = await response.json();
-        setRequestStatus(payload?.error || 'Unable to submit request right now.');
+    try {
+      const { error } = await supabase.from('requests').insert([
+        {
+          movie_id: selectedMovie.id,
+          user_id: requestEmail,
+          type: selectedMovie.type,
+          status: 'OPEN',
+          message: requestMessage,
+          delivery_method: deliveryMethod,
+        },
+      ]);
+
+      if (error) {
+        setRequestStatus(error.message || 'Unable to submit request right now.');
         return;
       }
 

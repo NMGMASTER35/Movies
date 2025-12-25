@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { supabase } from '../services/supabaseClient';
 
 export default function Home() {
   const [email, setEmail] = useState('');
@@ -20,20 +21,28 @@ export default function Home() {
       return;
     }
 
+    if (!supabase) {
+      setError('Missing Supabase configuration. Please check your environment settings.');
+      return;
+    }
+
     setIsSubmitting(true);
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/activate';
 
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = isLogin
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
+      const { data, error } = response;
+      const authError = error?.message;
+      const authUser = data?.user;
 
-      const payload = await response.json();
+      if (authError) {
+        setError(authError || 'Something went wrong. Please try again.');
+        return;
+      }
 
-      if (!response.ok) {
-        setError(payload?.error || 'Something went wrong. Please try again.');
+      if (!authUser) {
+        setError('Unable to validate your account. Please try again.');
         return;
       }
 
