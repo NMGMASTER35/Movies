@@ -231,6 +231,54 @@ button:hover {
   border: 1px solid rgba(229, 9, 20, 0.35);
 }
 
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.user-trigger {
+  border: none;
+  cursor: pointer;
+}
+
+.user-trigger .chevron {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.user-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  min-width: 160px;
+  border-radius: 14px;
+  background: rgba(17, 21, 31, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.4);
+  z-index: 20;
+}
+
+.user-dropdown button {
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  text-align: left;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.user-dropdown button:hover {
+  background: rgba(229, 9, 20, 0.15);
+  color: #fff;
+}
+
 .admin-badge {
   padding: 2px 8px;
   border-radius: 999px;

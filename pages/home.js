@@ -101,6 +101,7 @@ export default function Home() {
   const [profileAvatar, setProfileAvatar] = useState('');
   const [profileBio, setProfileBio] = useState('');
   const [profileStatus, setProfileStatus] = useState('');
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const isAdmin = useMemo(() => isAdminUser(user), [user]);
   const storageKey = useMemo(() => {
     if (!user?.id && !user?.email) {
@@ -402,6 +403,29 @@ export default function Home() {
     }
   };
 
+  const handleSignOut = async () => {
+    if (!supabase) {
+      setAuthStatus('Missing Supabase configuration. Please check your environment settings.');
+      return;
+    }
+
+    setAuthStatus('');
+
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        setAuthStatus(error.message || 'Unable to sign out right now.');
+        return;
+      }
+
+      setIsUserMenuOpen(false);
+      router.push('/');
+    } catch (signOutError) {
+      setAuthStatus(signOutError.message || 'Unable to sign out right now.');
+    }
+  };
+
   return (
     <div className="home-page">
       <nav className="top-nav">
@@ -419,9 +443,34 @@ export default function Home() {
           ))}
         </div>
         {user && (
-          <div className="user-chip">
-            <span>{profileName || user.email}</span>
-            {isAdmin && <span className="admin-badge">Admin</span>}
+          <div className="user-menu">
+            <button
+              type="button"
+              className="user-chip user-trigger"
+              onClick={() => setIsUserMenuOpen((open) => !open)}
+              aria-expanded={isUserMenuOpen}
+              aria-haspopup="true"
+            >
+              <span>{profileName || user.email}</span>
+              {isAdmin && <span className="admin-badge">Admin</span>}
+              <span className="chevron">▾</span>
+            </button>
+            {isUserMenuOpen && (
+              <div className="user-dropdown">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('profile');
+                    setIsUserMenuOpen(false);
+                  }}
+                >
+                  Edit profile
+                </button>
+                <button type="button" onClick={handleSignOut}>
+                  Sign out
+                </button>
+              </div>
+            )}
           </div>
         )}
       </nav>
