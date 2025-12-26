@@ -190,6 +190,40 @@ export default function Home() {
   }, [storageKey, user]);
 
   useEffect(() => {
+    const loadProfile = async () => {
+      if (!supabase || !user?.id) {
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('full_name, avatar_url, bio')
+          .eq('id', user.id)
+          .single();
+
+        if (error) {
+          return;
+        }
+
+        if (data?.full_name) {
+          setProfileName(data.full_name);
+        }
+        if (data?.avatar_url) {
+          setProfileAvatar(data.avatar_url);
+        }
+        if (data?.bio) {
+          setProfileBio(data.bio);
+        }
+      } catch (error) {
+        // Ignore profile fetch failures; local defaults will remain.
+      }
+    };
+
+    loadProfile();
+  }, [user]);
+
+  useEffect(() => {
     if (!storageKey) {
       return;
     }
@@ -278,17 +312,36 @@ export default function Home() {
       return;
     }
 
-    try {
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          full_name: profileName,
-          avatar_url: profileAvatar,
-          bio: profileBio,
-        },
-      });
+    if (!user?.id) {
+      setProfileStatus('Unable to load your account. Please log in again.');
+      return;
+    }
 
-      if (error) {
-        setProfileStatus(error.message || 'Unable to update your profile right now.');
+    try {
+      const [{ error: authError }, { error: profileError }] = await Promise.all([
+        supabase.auth.updateUser({
+          data: {
+            full_name: profileName,
+            avatar_url: profileAvatar,
+            bio: profileBio,
+          },
+        }),
+        supabase.from('profiles').upsert(
+          {
+            id: user.id,
+            full_name: profileName,
+            avatar_url: profileAvatar,
+            bio: profileBio,
+            email: user.email,
+          },
+          { onConflict: 'id' }
+        ),
+      ]);
+
+      if (authError || profileError) {
+        const message =
+          authError?.message || profileError?.message || 'Unable to update your profile right now.';
+        setProfileStatus(message);
         return;
       }
 
