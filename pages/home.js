@@ -504,8 +504,6 @@ export default function Home() {
     });
   }, [searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
 
-  const selectedRating = ratings.find((entry) => entry.movieId === selectedMovie?.id)?.rating || '';
-
   const handleAddToWatchlist = (movie) => {
     setWatchlist((prev) => {
       if (prev.some((item) => item.movieId === movie.id)) {
@@ -799,6 +797,7 @@ export default function Home() {
             <div className="movie-grid">
               {filteredMovies.map((movie) => {
                 const isSelected = selectedMovie?.id === movie.id;
+                const selectedRating = ratings.find((entry) => entry.movieId === movie.id)?.rating || '';
 
                 return (
                   <div key={movie.id} className="movie-grid-item">
@@ -821,6 +820,9 @@ export default function Home() {
                           </span>
                         </div>
                       </div>
+                      <span className="movie-card-chevron" aria-hidden="true">
+                        {isSelected ? '▴' : '▾'}
+                      </span>
                     </button>
                     {isSelected && (
                       <div className="movie-detail-dropdown">
@@ -828,16 +830,16 @@ export default function Home() {
                           <div className="detail-content">
                             <div>
                               <p className="eyebrow">Selected title</p>
-                              <h2>{selectedMovie.title}</h2>
-                              <p>{selectedMovie.description}</p>
+                              <h2>{movie.title}</h2>
+                              <p>{movie.description}</p>
                               <div className="detail-meta">
-                                <span>{selectedMovie.genre}</span>
-                                <span>{selectedMovie.type}</span>
-                                <span>{selectedMovie.year}</span>
-                                <span>{selectedMovie.rating}</span>
+                                <span>{movie.genre}</span>
+                                <span>{movie.type}</span>
+                                <span>{movie.year}</span>
+                                <span>{movie.rating}</span>
                               </div>
                             </div>
-                            <img src={selectedMovie.poster} alt={selectedMovie.title} />
+                            <img src={movie.poster} alt={movie.title} />
                           </div>
 
                           <div className="detail-sections">
@@ -846,35 +848,35 @@ export default function Home() {
                               <ul>
                                 <li>
                                   <span>Director</span>
-                                  <strong>{selectedMovie.director}</strong>
+                                  <strong>{movie.director}</strong>
                                 </li>
                                 <li>
                                   <span>Runtime</span>
-                                  <strong>{selectedMovie.runtime}</strong>
+                                  <strong>{movie.runtime}</strong>
                                 </li>
                                 <li>
                                   <span>Release date</span>
-                                  <strong>{selectedMovie.releaseDate}</strong>
+                                  <strong>{movie.releaseDate}</strong>
                                 </li>
                                 <li>
                                   <span>Genres</span>
-                                  <strong>{selectedMovie.genres.join(', ')}</strong>
+                                  <strong>{movie.genres.join(', ')}</strong>
                                 </li>
                               </ul>
                             </div>
                             <div className="detail-card">
                               <h3>Cast & crew</h3>
-                              <p>{selectedMovie.cast.join(' · ')}</p>
+                              <p>{movie.cast.join(' · ')}</p>
                             </div>
                             <div className="detail-card">
                               <h3>Ratings</h3>
                               <div className="rating-row">
                                 <span>Audience score</span>
-                                <strong>★ {selectedMovie.score.toFixed(1)} / 10</strong>
+                                <strong>★ {movie.score.toFixed(1)} / 10</strong>
                               </div>
                               <div className="rating-row">
                                 <span>Content rating</span>
-                                <strong>{selectedMovie.rating}</strong>
+                                <strong>{movie.rating}</strong>
                               </div>
                             </div>
                           </div>
@@ -888,14 +890,14 @@ export default function Home() {
                               <button
                                 type="button"
                                 className="secondary"
-                                onClick={() => handleAddToWatchlist(selectedMovie)}
+                                onClick={() => handleAddToWatchlist(movie)}
                               >
                                 Add to watchlist
                               </button>
                               <button
                                 type="button"
                                 className="secondary"
-                                onClick={() => handleHistoryMark(selectedMovie.id)}
+                                onClick={() => handleHistoryMark(movie.id)}
                               >
                                 Mark as watched
                               </button>
@@ -903,7 +905,7 @@ export default function Home() {
                                 Rating
                                 <select
                                   value={selectedRating}
-                                  onChange={(event) => handleRatingChange(selectedMovie.id, event.target.value)}
+                                  onChange={(event) => handleRatingChange(movie.id, event.target.value)}
                                 >
                                   <option value="">Choose</option>
                                   <option value="5">★★★★★</option>
@@ -916,7 +918,7 @@ export default function Home() {
                             </div>
                           </div>
 
-                          {selectedMovie.availability === 'Request' ? (
+                          {movie.availability === 'Request' ? (
                             <form className="request-form" onSubmit={handleRequestSubmit}>
                               <h3>Request this title</h3>
                               <div className="request-fields">
@@ -968,7 +970,7 @@ export default function Home() {
                             <div className="detail-card">
                               <h3>Watch options</h3>
                               <ul className="option-list">
-                                {selectedMovie.watchOptions.map((option) => (
+                                {movie.watchOptions.map((option) => (
                                   <li key={option.platform}>
                                     <strong>{option.platform}</strong>
                                     <span>{option.detail}</span>
@@ -981,18 +983,18 @@ export default function Home() {
                               <div className="media-stack">
                                 <div className="trailer-embed">
                                   <iframe
-                                    src={`https://www.youtube.com/embed/${selectedMovie.trailerId}`}
-                                    title={`${selectedMovie.title} trailer`}
+                                    src={`https://www.youtube.com/embed/${movie.trailerId}`}
+                                    title={`${movie.title} trailer`}
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                   />
                                 </div>
                                 <div className="media-grid">
-                                  {selectedMovie.gallery.map((image) => (
+                                  {movie.gallery.map((image) => (
                                     <img
                                       key={image}
                                       src={image}
-                                      alt={`${selectedMovie.title} still`}
+                                      alt={`${movie.title} still`}
                                       loading="lazy"
                                     />
                                   ))}

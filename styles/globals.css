@@ -374,6 +374,7 @@ button:hover {
   gap: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
 }
 
 .movie-card.selected {
@@ -394,8 +395,22 @@ button:hover {
   border-radius: 12px;
 }
 
+.movie-card-chevron {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 16px;
+  color: #e2e8f0;
+  opacity: 0.8;
+}
+
 .movie-detail-dropdown {
   animation: dropdownFade 0.25s ease;
+  background: rgba(12, 15, 22, 0.92);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 35px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
 }
 
 .movie-info h3 {
