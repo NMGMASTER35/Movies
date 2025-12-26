@@ -348,8 +348,45 @@ const SHAREABLE_LISTS = [
   },
 ];
 
-const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery', 'Business'];
-const TYPES = ['All', 'Movie', 'Series'];
+const normalizeMovie = (movie) => {
+  const genres = Array.isArray(movie.genres)
+    ? movie.genres
+    : Array.isArray(movie.genre)
+    ? movie.genre
+    : movie.genre
+    ? [movie.genre]
+    : [];
+  const watchOptions = Array.isArray(movie.watch_options)
+    ? movie.watch_options
+    : Array.isArray(movie.watchOptions)
+    ? movie.watchOptions
+    : [];
+  const gallery = Array.isArray(movie.gallery) ? movie.gallery : [];
+  const cast = Array.isArray(movie.cast) ? movie.cast : [];
+
+  return {
+    id: movie.id,
+    title: movie.title || 'Untitled',
+    genre: movie.genre || genres[0] || 'Unknown',
+    genres,
+    type: movie.type || 'Movie',
+    year: Number(movie.year) || null,
+    runtime: movie.runtime || '',
+    rating: movie.rating || '',
+    score: Number(movie.score) || 0,
+    popularity: Number(movie.popularity) || 0,
+    releaseDate: movie.release_date || movie.releaseDate || '',
+    availability: movie.availability || 'Streaming',
+    director: movie.director || '',
+    cast,
+    watchOptions,
+    trailerId: movie.trailer_id || movie.trailerId || '',
+    gallery,
+    poster: movie.poster || '',
+    description: movie.description || '',
+    featured: Boolean(movie.featured),
+  };
+};
 const RATING_FILTERS = [
   { label: 'All ratings', value: 'All' },
   { label: '9+ score', value: '9' },
@@ -388,6 +425,14 @@ export default function Home() {
   const [profileBio, setProfileBio] = useState('');
   const [profileStatus, setProfileStatus] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [movies, setMovies] = useState(MOVIES);
+  const [adminMetrics, setAdminMetrics] = useState(ADMIN_METRICS);
+  const [adminMovies, setAdminMovies] = useState(ADMIN_MOVIES);
+  const [adminRequests, setAdminRequests] = useState(ADMIN_REQUESTS);
+  const [adminUsers, setAdminUsers] = useState(ADMIN_USERS);
+  const [socialReviews, setSocialReviews] = useState(SOCIAL_REVIEWS);
+  const [socialFollowing, setSocialFollowing] = useState(SOCIAL_FOLLOWING);
+  const [shareableLists, setShareableLists] = useState(SHAREABLE_LISTS);
   const isAdmin = useMemo(() => isAdminUser(user), [user]);
   const isAdminPreview = useMemo(() => router.query.admin === 'preview', [router.query.admin]);
   const canViewAdmin = isAdmin || isAdminPreview;
@@ -401,8 +446,8 @@ export default function Home() {
     }
 
     return `movie-profile-${user?.id || user?.email}`;
-  }, [user]);
-  const movieMap = useMemo(() => new Map(MOVIES.map((movie) => [movie.id, movie])), []);
+  }, [supabase, user]);
+  const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
 
   useEffect(() => {
     if (!supabase) {
@@ -453,10 +498,10 @@ export default function Home() {
     if (user?.email) {
       setRequestEmail(user.email);
     }
-  }, [user]);
+  }, [supabase, user]);
 
   useEffect(() => {
-    if (!storageKey) {
+    if (!storageKey || (supabase && user?.id)) {
       return;
     }
 
@@ -481,7 +526,7 @@ export default function Home() {
       setProfileAvatar(user?.user_metadata?.avatar_url || '');
       setProfileBio(user?.user_metadata?.bio || '');
     }
-  }, [storageKey, user]);
+  }, [storageKey, supabase, user]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -515,10 +560,10 @@ export default function Home() {
     };
 
     loadProfile();
-  }, [user]);
+  }, [supabase, user]);
 
   useEffect(() => {
-    if (!storageKey) {
+    if (!storageKey || (supabase && user?.id)) {
       return;
     }
 
@@ -532,13 +577,172 @@ export default function Home() {
     };
 
     window.localStorage.setItem(storageKey, JSON.stringify(payload));
-  }, [storageKey, watchlist, ratings, history, profileName, profileAvatar, profileBio]);
+  }, [storageKey, watchlist, ratings, history, profileName, profileAvatar, profileBio, supabase, user]);
 
-  const featured = MOVIES.find((movie) => movie.featured) || MOVIES[0];
+  useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadContent = async () => {
+      try {
+        const [
+          moviesResult,
+          metricsResult,
+          adminMoviesResult,
+          adminRequestsResult,
+          adminUsersResult,
+          reviewsResult,
+          followingResult,
+          listsResult,
+        ] = await Promise.all([
+          supabase.from('movies').select('*'),
+          supabase.from('admin_metrics').select('*'),
+          supabase.from('admin_movies').select('*'),
+          supabase.from('admin_requests').select('*'),
+          supabase.from('admin_users').select('*'),
+          supabase.from('social_reviews').select('*'),
+          supabase.from('social_following').select('*'),
+          supabase.from('shareable_lists').select('*'),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (!moviesResult.error && moviesResult.data?.length) {
+          setMovies(moviesResult.data.map(normalizeMovie));
+        }
+
+        if (!metricsResult.error && metricsResult.data?.length) {
+          setAdminMetrics(metricsResult.data);
+        }
+
+        if (!adminMoviesResult.error && adminMoviesResult.data?.length) {
+          setAdminMovies(adminMoviesResult.data);
+        }
+
+        if (!adminRequestsResult.error && adminRequestsResult.data?.length) {
+          setAdminRequests(adminRequestsResult.data);
+        }
+
+        if (!adminUsersResult.error && adminUsersResult.data?.length) {
+          setAdminUsers(adminUsersResult.data);
+        }
+
+        if (!reviewsResult.error && reviewsResult.data?.length) {
+          setSocialReviews(reviewsResult.data);
+        }
+
+        if (!followingResult.error && followingResult.data?.length) {
+          setSocialFollowing(followingResult.data);
+        }
+
+        if (!listsResult.error && listsResult.data?.length) {
+          setShareableLists(
+            listsResult.data.map((list) => ({
+              ...list,
+              movies: Array.isArray(list.movies) ? list.movies : [],
+            }))
+          );
+        }
+      } catch (error) {
+        // Ignore content load failures; fallback data will remain.
+      }
+    };
+
+    loadContent();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase || !user?.id) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadLibrary = async () => {
+      try {
+        const [watchlistResult, ratingsResult, historyResult] = await Promise.all([
+          supabase.from('watchlist').select('movie_id, added_at').eq('user_id', user.id),
+          supabase.from('ratings').select('movie_id, rating, updated_at').eq('user_id', user.id),
+          supabase.from('history').select('movie_id, watched_at').eq('user_id', user.id),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (!watchlistResult.error && watchlistResult.data) {
+          setWatchlist(
+            watchlistResult.data.map((entry) => ({
+              movieId: entry.movie_id,
+              addedAt: entry.added_at,
+            }))
+          );
+        }
+
+        if (!ratingsResult.error && ratingsResult.data) {
+          setRatings(
+            ratingsResult.data.map((entry) => ({
+              movieId: entry.movie_id,
+              rating: entry.rating,
+              updatedAt: entry.updated_at,
+            }))
+          );
+        }
+
+        if (!historyResult.error && historyResult.data) {
+          setHistory(
+            historyResult.data.map((entry) => ({
+              movieId: entry.movie_id,
+              watchedAt: entry.watched_at,
+            }))
+          );
+        }
+      } catch (error) {
+        // Ignore library load failures; local state remains.
+      }
+    };
+
+    loadLibrary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [supabase, user]);
+
+  const featured = movies.find((movie) => movie.featured) || movies[0] || {};
   const availableYears = useMemo(() => {
-    const years = [...new Set(MOVIES.map((movie) => movie.year))];
+    const years = [...new Set(movies.map((movie) => movie.year).filter(Boolean))];
     return ['All', ...years.sort((a, b) => b - a)];
-  }, []);
+  }, [movies]);
+  const availableGenres = useMemo(() => {
+    const genreSet = new Set();
+    movies.forEach((movie) => {
+      if (movie.genre) {
+        genreSet.add(movie.genre);
+      }
+      movie.genres?.forEach((genre) => genreSet.add(genre));
+    });
+
+    return ['All', ...Array.from(genreSet).sort()];
+  }, [movies]);
+  const availableTypes = useMemo(() => {
+    const typeSet = new Set();
+    movies.forEach((movie) => {
+      if (movie.type) {
+        typeSet.add(movie.type);
+      }
+    });
+    return ['All', ...Array.from(typeSet).sort()];
+  }, [movies]);
   const favoriteGenres = useMemo(() => {
     const genreCounts = {};
 
@@ -548,7 +752,8 @@ export default function Home() {
         return;
       }
 
-      movie.genres.forEach((genre) => {
+      const genres = movie.genres?.length ? movie.genres : movie.genre ? [movie.genre] : [];
+      genres.forEach((genre) => {
         genreCounts[genre] = (genreCounts[genre] || 0) + weight;
       });
     };
@@ -571,10 +776,11 @@ export default function Home() {
     const seenIds = new Set(history.map((entry) => entry.movieId));
     const boostedGenres = new Set(favoriteGenres);
 
-    return MOVIES.filter((movie) => !seenIds.has(movie.id))
+    return movies
+      .filter((movie) => !seenIds.has(movie.id))
       .map((movie) => {
         let score = movie.score * 10 + movie.popularity;
-        if (boostedGenres.size && movie.genres.some((genre) => boostedGenres.has(genre))) {
+        if (boostedGenres.size && (movie.genres || []).some((genre) => boostedGenres.has(genre))) {
           score += 25;
         }
         if (watchlist.some((entry) => entry.movieId === movie.id)) {
@@ -585,10 +791,10 @@ export default function Home() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
       .map((entry) => entry.movie);
-  }, [favoriteGenres, history, watchlist]);
+  }, [favoriteGenres, history, movies, watchlist]);
   const trendingMovies = useMemo(
-    () => [...MOVIES].sort((a, b) => b.popularity - a.popularity).slice(0, 3),
-    [],
+    () => [...movies].sort((a, b) => b.popularity - a.popularity).slice(0, 3),
+    [movies],
   );
   const recommendationsSummary = favoriteGenres.length
     ? `Tailored from your love of ${favoriteGenres.join(' & ')} stories.`
@@ -598,7 +804,7 @@ export default function Home() {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const minScore = selectedScore === 'All' ? null : Number(selectedScore);
 
-    const filtered = MOVIES.filter((movie) => {
+    const filtered = movies.filter((movie) => {
       const searchable = [
         movie.title,
         movie.genre,
@@ -635,49 +841,82 @@ export default function Home() {
           return b.popularity - a.popularity;
       }
     });
-  }, [searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
+  }, [movies, searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
 
   const handleAddToWatchlist = (movie) => {
+    const timestamp = new Date().toISOString();
     setWatchlist((prev) => {
       if (prev.some((item) => item.movieId === movie.id)) {
         return prev;
       }
-      return [...prev, { movieId: movie.id, addedAt: new Date().toISOString() }];
+      return [...prev, { movieId: movie.id, addedAt: timestamp }];
     });
+
+    if (supabase && user?.id) {
+      supabase
+        .from('watchlist')
+        .upsert({ user_id: user.id, movie_id: movie.id, added_at: timestamp }, { onConflict: 'user_id,movie_id' });
+    }
   };
 
   const handleRemoveFromWatchlist = (movieId) => {
     setWatchlist((prev) => prev.filter((item) => item.movieId !== movieId));
+
+    if (supabase && user?.id) {
+      supabase.from('watchlist').delete().eq('user_id', user.id).eq('movie_id', movieId);
+    }
   };
 
   const handleRatingChange = (movieId, rating) => {
+    const timestamp = new Date().toISOString();
     setRatings((prev) => {
       const existing = prev.find((entry) => entry.movieId === movieId);
       if (existing) {
         return prev.map((entry) =>
-          entry.movieId === movieId ? { ...entry, rating, updatedAt: new Date().toISOString() } : entry
+          entry.movieId === movieId ? { ...entry, rating, updatedAt: timestamp } : entry
         );
       }
-      return [...prev, { movieId, rating, updatedAt: new Date().toISOString() }];
+      return [...prev, { movieId, rating, updatedAt: timestamp }];
     });
+
+    if (supabase && user?.id) {
+      supabase
+        .from('ratings')
+        .upsert(
+          { user_id: user.id, movie_id: movieId, rating, updated_at: timestamp },
+          { onConflict: 'user_id,movie_id' }
+        );
+    }
   };
 
   const handleHistoryMark = (movieId) => {
+    const timestamp = new Date().toISOString();
     setHistory((prev) => {
       const existing = prev.find((entry) => entry.movieId === movieId);
       if (existing) {
         return prev.map((entry) =>
-          entry.movieId === movieId
-            ? { ...entry, watchedAt: new Date().toISOString() }
-            : entry
+          entry.movieId === movieId ? { ...entry, watchedAt: timestamp } : entry
         );
       }
-      return [...prev, { movieId, watchedAt: new Date().toISOString() }];
+      return [...prev, { movieId, watchedAt: timestamp }];
     });
+
+    if (supabase && user?.id) {
+      supabase
+        .from('history')
+        .upsert(
+          { user_id: user.id, movie_id: movieId, watched_at: timestamp },
+          { onConflict: 'user_id,movie_id' }
+        );
+    }
   };
 
   const handleHistoryRemove = (movieId) => {
     setHistory((prev) => prev.filter((entry) => entry.movieId !== movieId));
+
+    if (supabase && user?.id) {
+      supabase.from('history').delete().eq('user_id', user.id).eq('movie_id', movieId);
+    }
   };
 
   const handleProfileSave = async (event) => {
@@ -733,18 +972,18 @@ export default function Home() {
     }
   };
 
-  const renderMovieTitle = (movieId) => MOVIES.find((movie) => movie.id === movieId)?.title || 'Unknown';
+  const renderMovieTitle = (movieId) => movieMap.get(movieId)?.title || 'Unknown';
 
   const renderMovieMeta = (movieId) => {
-    const movie = MOVIES.find((item) => item.id === movieId);
+    const movie = movieMap.get(movieId);
     if (!movie) {
       return '';
     }
-    return `${movie.genre} • ${movie.type}`;
+    return [movie.genre, movie.type].filter(Boolean).join(' • ');
   };
 
   const renderRecommendationReason = (movie) => {
-    const matchingGenre = favoriteGenres.find((genre) => movie.genres.includes(genre));
+    const matchingGenre = favoriteGenres.find((genre) => (movie.genres || []).includes(genre));
     if (matchingGenre) {
       return `Because you enjoy ${matchingGenre} titles.`;
     }
@@ -911,14 +1150,14 @@ export default function Home() {
             </div>
             <div className="filters">
               <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
-                {GENRES.map((genre) => (
+                {availableGenres.map((genre) => (
                   <option key={genre} value={genre}>
                     {genre}
                   </option>
                 ))}
               </select>
               <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)}>
-                {TYPES.map((type) => (
+                {availableTypes.map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
@@ -1039,11 +1278,11 @@ export default function Home() {
                   <span className="badge">Live updates</span>
                 </div>
                 <ul className="social-list">
-                  {SOCIAL_REVIEWS.map((review) => (
+                  {socialReviews.map((review) => (
                     <li key={review.id}>
                       <div>
                         <strong>{review.reviewer}</strong>
-                        <span>{renderMovieTitle(review.movieId)}</span>
+                        <span>{renderMovieTitle(review.movie_id || review.movieId)}</span>
                         <p>{review.comment}</p>
                       </div>
                       <div className="social-meta">
@@ -1061,7 +1300,7 @@ export default function Home() {
                   <span className="badge muted">Suggested</span>
                 </div>
                 <ul className="social-list">
-                  {SOCIAL_FOLLOWING.map((member) => (
+                  {socialFollowing.map((member) => (
                     <li key={member.id}>
                       <div>
                         <strong>{member.name}</strong>
@@ -1088,14 +1327,16 @@ export default function Home() {
                   <span className="badge">Community</span>
                 </div>
                 <div className="shareable-list">
-                  {SHAREABLE_LISTS.map((list) => (
+                  {shareableLists.map((list) => (
                     <article key={list.id} className="shareable-item">
                       <div>
                         <strong>{list.title}</strong>
                         <span>
                           Curated by {list.curator} · {list.followers} followers
                         </span>
-                        <p>{list.movies.map((movieId) => renderMovieTitle(movieId)).join(' · ')}</p>
+                        <p>
+                          {(list.movies || []).map((movieId) => renderMovieTitle(movieId)).join(' · ')}
+                        </p>
                       </div>
                       <button type="button" className="secondary">
                         Share list
@@ -1175,13 +1416,13 @@ export default function Home() {
                                 </li>
                                 <li>
                                   <span>Genres</span>
-                                  <strong>{movie.genres.join(', ')}</strong>
+                                  <strong>{(movie.genres || []).join(', ')}</strong>
                                 </li>
                               </ul>
                             </div>
                             <div className="detail-card">
                               <h3>Cast & crew</h3>
-                              <p>{movie.cast.join(' · ')}</p>
+                              <p>{(movie.cast || []).join(' · ')}</p>
                             </div>
                             <div className="detail-card">
                               <h3>Ratings</h3>
@@ -1285,7 +1526,7 @@ export default function Home() {
                             <div className="detail-card">
                               <h3>Watch options</h3>
                               <ul className="option-list">
-                                {movie.watchOptions.map((option) => (
+                                {(movie.watchOptions || []).map((option) => (
                                   <li key={option.platform}>
                                     <strong>{option.platform}</strong>
                                     <span>{option.detail}</span>
@@ -1305,7 +1546,7 @@ export default function Home() {
                                   />
                                 </div>
                                 <div className="media-grid">
-                                  {movie.gallery.map((image) => (
+                                  {(movie.gallery || []).map((image) => (
                                     <img
                                       key={image}
                                       src={image}
@@ -1350,7 +1591,7 @@ export default function Home() {
           </header>
 
           <div className="admin-metrics">
-            {ADMIN_METRICS.map((metric) => (
+            {adminMetrics.map((metric) => (
               <div key={metric.label} className="admin-metric">
                 <p className="eyebrow">{metric.label}</p>
                 <h3>{metric.value}</h3>
@@ -1371,7 +1612,7 @@ export default function Home() {
                 </button>
               </div>
               <ul className="admin-list">
-                {ADMIN_MOVIES.map((movie) => (
+                {adminMovies.map((movie) => (
                   <li key={movie.id}>
                     <div>
                       <strong>{movie.title}</strong>
@@ -1401,12 +1642,12 @@ export default function Home() {
                 </button>
               </div>
               <ul className="admin-list">
-                {ADMIN_REQUESTS.map((request) => (
+                {adminRequests.map((request) => (
                   <li key={request.id}>
                     <div>
                       <strong>{request.title}</strong>
                       <span>
-                        Requested by {request.requestedBy} · {request.timeframe}
+                        Requested by {request.requested_by || request.requestedBy} · {request.timeframe}
                       </span>
                       <em>{request.notes}</em>
                     </div>
@@ -1432,7 +1673,7 @@ export default function Home() {
                 </button>
               </div>
               <ul className="admin-list">
-                {ADMIN_USERS.map((member) => (
+                {adminUsers.map((member) => (
                   <li key={member.id}>
                     <div>
                       <strong>{member.name}</strong>
