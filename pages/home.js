@@ -7,10 +7,27 @@ const MOVIES = [
     id: 'm1',
     title: 'Skyline Drift',
     genre: 'Action',
+    genres: ['Action', 'Thriller'],
     type: 'Movie',
     year: 2023,
+    runtime: '2h 7m',
     rating: 'PG-13',
+    score: 8.6,
+    popularity: 92,
+    releaseDate: '2023-08-18',
     availability: 'Streaming',
+    director: 'Cameron Reyes',
+    cast: ['Lana Cho', 'Miles Carter', 'Rina Patel'],
+    watchOptions: [
+      { platform: 'Cinemax Stream', detail: '4K UHD · Included' },
+      { platform: 'Prime Pass', detail: 'Rent from $3.99' },
+      { platform: 'USB Vault', detail: 'Shipped in 48 hours' },
+    ],
+    trailerId: 'v5j3K75d0L0',
+    gallery: [
+      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=500&q=80',
     description: 'An elite driver fights to clear his name in a high-stakes city race.',
@@ -20,10 +37,27 @@ const MOVIES = [
     id: 'm2',
     title: 'The Silent Reef',
     genre: 'Thriller',
+    genres: ['Thriller', 'Mystery'],
     type: 'Movie',
     year: 2022,
+    runtime: '1h 54m',
     rating: 'R',
+    score: 7.8,
+    popularity: 81,
+    releaseDate: '2022-04-02',
     availability: 'Request',
+    director: 'Noah Grant',
+    cast: ['Avery Brooks', 'Selene Ward', 'Jonah Kim'],
+    watchOptions: [
+      { platform: 'Request Library', detail: 'Admin approval required' },
+      { platform: 'USB Vault', detail: 'Delivered in 3-5 days' },
+      { platform: 'Private Link', detail: 'Encrypted stream' },
+    ],
+    trailerId: 'u1o5y4cVb2w',
+    gallery: [
+      'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
     description: 'A marine biologist uncovers a hidden conspiracy beneath the waves.',
@@ -32,10 +66,27 @@ const MOVIES = [
     id: 'm3',
     title: 'Glass Frontier',
     genre: 'Drama',
+    genres: ['Drama', 'Business'],
     type: 'Series',
     year: 2021,
+    runtime: '10 episodes',
     rating: 'TV-MA',
+    score: 8.2,
+    popularity: 77,
+    releaseDate: '2021-11-10',
     availability: 'Streaming',
+    director: 'Naomi Rivers',
+    cast: ['Elena Voss', 'Andre Mills', 'Kai Nakamura'],
+    watchOptions: [
+      { platform: 'Streamline', detail: 'Season 1-2 · Included' },
+      { platform: 'Download Hub', detail: 'Offline access' },
+      { platform: 'USB Vault', detail: 'Collector bundle' },
+    ],
+    trailerId: 'Xb8VZ2Q9LxA',
+    gallery: [
+      'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
     description: 'A family-run empire struggles to survive a ruthless tech takeover.',
@@ -44,10 +95,27 @@ const MOVIES = [
     id: 'm4',
     title: 'Orbit City',
     genre: 'Sci-Fi',
+    genres: ['Sci-Fi', 'Adventure'],
     type: 'Series',
     year: 2024,
+    runtime: '8 episodes',
     rating: 'TV-14',
+    score: 9.1,
+    popularity: 95,
+    releaseDate: '2024-02-16',
     availability: 'Request',
+    director: 'Inez Calderon',
+    cast: ['Mira Sol', 'Leo Hart', 'Aisha Coleman'],
+    watchOptions: [
+      { platform: 'Request Library', detail: 'Admin approval required' },
+      { platform: 'Starlight Stream', detail: 'HDR access' },
+      { platform: 'USB Vault', detail: 'Priority shipping' },
+    ],
+    trailerId: 'lZQ5lq8uRIE',
+    gallery: [
+      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
     description: 'Citizens in a floating metropolis uncover secrets in the lower decks.',
@@ -56,10 +124,27 @@ const MOVIES = [
     id: 'm5',
     title: 'Café Sonata',
     genre: 'Romance',
+    genres: ['Romance', 'Drama'],
     type: 'Movie',
     year: 2020,
+    runtime: '1h 42m',
     rating: 'PG',
+    score: 7.4,
+    popularity: 68,
+    releaseDate: '2020-05-12',
     availability: 'Streaming',
+    director: 'Lucia Moreau',
+    cast: ['Isabelle Laurent', 'Theo Grant', 'Mina Park'],
+    watchOptions: [
+      { platform: 'Café Stream', detail: 'Included with subscription' },
+      { platform: 'Prime Pass', detail: 'Rent from $2.99' },
+      { platform: 'USB Vault', detail: 'Special edition' },
+    ],
+    trailerId: 'aA6C8nJ0qL4',
+    gallery: [
+      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
     description: 'Two strangers bond over music, pastries, and a Parisian café.',
@@ -68,24 +153,57 @@ const MOVIES = [
     id: 'm6',
     title: 'Hidden Atlas',
     genre: 'Adventure',
+    genres: ['Adventure', 'Action'],
     type: 'Movie',
     year: 2019,
+    runtime: '2h 12m',
     rating: 'PG-13',
+    score: 7.9,
+    popularity: 73,
+    releaseDate: '2019-09-04',
     availability: 'Request',
+    director: 'Rafael Stone',
+    cast: ['Tessa Monroe', 'Harper Quinn', 'Omar Reyes'],
+    watchOptions: [
+      { platform: 'Request Library', detail: 'Approval in 24 hours' },
+      { platform: 'Explorer Stream', detail: 'HD access' },
+      { platform: 'USB Vault', detail: 'Adventure pack' },
+    ],
+    trailerId: 'o0Z2re7muX0',
+    gallery: [
+      'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
+      'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
+    ],
     poster:
       'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
     description: 'A cartographer and her crew hunt for a legendary island map.',
   },
 ];
 
-const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adventure'];
+const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery', 'Business'];
 const TYPES = ['All', 'Movie', 'Series'];
+const RATING_FILTERS = [
+  { label: 'All ratings', value: 'All' },
+  { label: '9+ score', value: '9' },
+  { label: '8+ score', value: '8' },
+  { label: '7+ score', value: '7' },
+  { label: '6+ score', value: '6' },
+];
+const SORT_OPTIONS = [
+  { label: 'Sort by popularity', value: 'popularity' },
+  { label: 'Newest releases', value: 'newest' },
+  { label: 'Oldest releases', value: 'oldest' },
+  { label: 'Highest rated', value: 'rating' },
+];
 
 export default function Home() {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
+  const [selectedYear, setSelectedYear] = useState('All');
+  const [selectedScore, setSelectedScore] = useState('All');
+  const [sortBy, setSortBy] = useState('popularity');
   const [selectedMovie, setSelectedMovie] = useState(MOVIES[0]);
   const [activeTab, setActiveTab] = useState('browse');
   const [requestEmail, setRequestEmail] = useState('');
@@ -242,17 +360,53 @@ export default function Home() {
   }, [storageKey, watchlist, ratings, history, profileName, profileAvatar, profileBio]);
 
   const featured = MOVIES.find((movie) => movie.featured) || MOVIES[0];
+  const availableYears = useMemo(() => {
+    const years = [...new Set(MOVIES.map((movie) => movie.year))];
+    return ['All', ...years.sort((a, b) => b - a)];
+  }, []);
 
   const filteredMovies = useMemo(() => {
-    return MOVIES.filter((movie) => {
-      const matchesSearch =
-        movie.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        movie.genre.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesGenre = selectedGenre === 'All' || movie.genre === selectedGenre;
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const minScore = selectedScore === 'All' ? null : Number(selectedScore);
+
+    const filtered = MOVIES.filter((movie) => {
+      const searchable = [
+        movie.title,
+        movie.genre,
+        ...(movie.genres || []),
+        ...(movie.cast || []),
+        movie.director,
+        movie.type,
+        String(movie.year),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      const matchesSearch = !normalizedSearch || searchable.includes(normalizedSearch);
+      const matchesGenre =
+        selectedGenre === 'All' || movie.genre === selectedGenre || movie.genres?.includes(selectedGenre);
       const matchesType = selectedType === 'All' || movie.type === selectedType;
-      return matchesSearch && matchesGenre && matchesType;
+      const matchesYear = selectedYear === 'All' || movie.year === Number(selectedYear);
+      const matchesScore = minScore === null || movie.score >= minScore;
+
+      return matchesSearch && matchesGenre && matchesType && matchesYear && matchesScore;
     });
-  }, [searchTerm, selectedGenre, selectedType]);
+
+    return filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return b.year - a.year;
+        case 'oldest':
+          return a.year - b.year;
+        case 'rating':
+          return b.score - a.score;
+        case 'popularity':
+        default:
+          return b.popularity - a.popularity;
+      }
+    });
+  }, [searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
 
   const selectedRating = ratings.find((entry) => entry.movieId === selectedMovie?.id)?.rating || '';
 
@@ -520,6 +674,27 @@ export default function Home() {
                   </option>
                 ))}
               </select>
+              <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year === 'All' ? 'All years' : year}
+                  </option>
+                ))}
+              </select>
+              <select value={selectedScore} onChange={(event) => setSelectedScore(event.target.value)}>
+                {RATING_FILTERS.map((rating) => (
+                  <option key={rating.value} value={rating.value}>
+                    {rating.label}
+                  </option>
+                ))}
+              </select>
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </section>
 
@@ -533,19 +708,25 @@ export default function Home() {
                   className={`movie-card ${selectedMovie?.id === movie.id ? 'selected' : ''}`}
                   onClick={() => setSelectedMovie(movie)}
                 >
-                  <img src={movie.poster} alt={movie.title} />
+                  <img src={movie.poster} alt={movie.title} loading="lazy" />
                   <div className="movie-info">
                     <h3>{movie.title}</h3>
                     <p>
                       {movie.genre} • {movie.type}
                     </p>
-                    <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
-                      {movie.availability}
-                    </span>
+                    <div className="movie-tags">
+                      <span className="movie-score">★ {movie.score.toFixed(1)}</span>
+                      <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
+                        {movie.availability}
+                      </span>
+                    </div>
                   </div>
                 </button>
               ))}
             </div>
+            {filteredMovies.length === 0 && (
+              <p className="status">No matches found. Try adjusting your filters.</p>
+            )}
           </section>
 
           {selectedMovie && (
@@ -563,6 +744,45 @@ export default function Home() {
                   </div>
                 </div>
                 <img src={selectedMovie.poster} alt={selectedMovie.title} />
+              </div>
+
+              <div className="detail-sections">
+                <div className="detail-card">
+                  <h3>Movie details</h3>
+                  <ul>
+                    <li>
+                      <span>Director</span>
+                      <strong>{selectedMovie.director}</strong>
+                    </li>
+                    <li>
+                      <span>Runtime</span>
+                      <strong>{selectedMovie.runtime}</strong>
+                    </li>
+                    <li>
+                      <span>Release date</span>
+                      <strong>{selectedMovie.releaseDate}</strong>
+                    </li>
+                    <li>
+                      <span>Genres</span>
+                      <strong>{selectedMovie.genres.join(', ')}</strong>
+                    </li>
+                  </ul>
+                </div>
+                <div className="detail-card">
+                  <h3>Cast & crew</h3>
+                  <p>{selectedMovie.cast.join(' · ')}</p>
+                </div>
+                <div className="detail-card">
+                  <h3>Ratings</h3>
+                  <div className="rating-row">
+                    <span>Audience score</span>
+                    <strong>★ {selectedMovie.score.toFixed(1)} / 10</strong>
+                  </div>
+                  <div className="rating-row">
+                    <span>Content rating</span>
+                    <strong>{selectedMovie.rating}</strong>
+                  </div>
+                </div>
               </div>
 
               <div className="detail-actions">
@@ -641,6 +861,38 @@ export default function Home() {
                   <button className="primary">Play now</button>
                 </div>
               )}
+
+              <div className="detail-extra">
+                <div className="detail-card">
+                  <h3>Watch options</h3>
+                  <ul className="option-list">
+                    {selectedMovie.watchOptions.map((option) => (
+                      <li key={option.platform}>
+                        <strong>{option.platform}</strong>
+                        <span>{option.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="detail-card">
+                  <h3>Trailers & media</h3>
+                  <div className="media-stack">
+                    <div className="trailer-embed">
+                      <iframe
+                        src={`https://www.youtube.com/embed/${selectedMovie.trailerId}`}
+                        title={`${selectedMovie.title} trailer`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                    <div className="media-grid">
+                      {selectedMovie.gallery.map((image) => (
+                        <img key={image} src={image} alt={`${selectedMovie.title} still`} loading="lazy" />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
           )}
         </>
