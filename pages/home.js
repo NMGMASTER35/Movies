@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../services/supabaseClient';
+import { supabase, isAdminUser } from '../services/supabaseClient';
 
 const MOVIES = [
   {
@@ -93,6 +93,7 @@ export default function Home() {
   const [requestStatus, setRequestStatus] = useState('');
   const [user, setUser] = useState(null);
   const [authStatus, setAuthStatus] = useState('');
+  const isAdmin = useMemo(() => isAdminUser(user), [user]);
 
   useEffect(() => {
     if (!supabase) {
@@ -209,7 +210,12 @@ export default function Home() {
           <span>Requests</span>
           <span>Profile</span>
         </div>
-        {user && <div className="user-chip">{user.email}</div>}
+        {user && (
+          <div className="user-chip">
+            <span>{user.email}</span>
+            {isAdmin && <span className="admin-badge">Admin</span>}
+          </div>
+        )}
       </nav>
 
       {authStatus && <p className="status">{authStatus}</p>}
