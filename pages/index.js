@@ -5,6 +5,8 @@ import { supabase } from '../services/supabaseClient';
 export default function Home() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [isLogin, setIsLogin] = useState(true);
@@ -16,8 +18,8 @@ export default function Home() {
     setError('');
     setStatusMessage('');
 
-    if (!email || !password) {
-      setError('Email and password are required.');
+    if (!email || !password || (!isLogin && !fullName)) {
+      setError(isLogin ? 'Email and password are required.' : 'Name, email, and password are required.');
       return;
     }
 
@@ -31,7 +33,16 @@ export default function Home() {
     try {
       const response = isLogin
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password });
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: fullName,
+                invite_code: inviteCode || null,
+              },
+            },
+          });
       const { data, error } = response;
       const authError = error?.message;
       const authUser = data?.user;
@@ -46,7 +57,13 @@ export default function Home() {
         return;
       }
 
-      setStatusMessage(isLogin ? 'Welcome back!' : 'Account activated. Check your email to confirm.');
+      if (isLogin) {
+        setStatusMessage('Welcome back!');
+      } else if (inviteCode) {
+        setStatusMessage('Invite accepted! Check your email to confirm activation.');
+      } else {
+        setStatusMessage('Check your email to confirm your account.');
+      }
       router.push('/home');
     } catch (submitError) {
       setError(submitError.message || 'Unable to reach the server.');
@@ -82,6 +99,17 @@ export default function Home() {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
+          {!isLogin && (
+            <label>
+              Full name
+              <input
+                type="text"
+                placeholder="Alex Morgan"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </label>
+          )}
           <label>
             Email address
             <input
@@ -100,6 +128,17 @@ export default function Home() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
+          {!isLogin && (
+            <label>
+              Invite code (optional)
+              <input
+                type="text"
+                placeholder="MOVIES-2024"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+              />
+            </label>
+          )}
           <button type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Processing...' : isLogin ? 'Login' : 'Activate Account'}
           </button>
