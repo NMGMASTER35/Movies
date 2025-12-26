@@ -208,12 +208,26 @@ button:hover {
 }
 
 .user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 14px;
   border-radius: 999px;
   font-size: 12px;
   background: rgba(229, 9, 20, 0.15);
   color: #fca5a5;
   border: 1px solid rgba(229, 9, 20, 0.35);
+}
+
+.admin-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: rgba(248, 250, 252, 0.18);
+  color: #f8fafc;
+  border: 1px solid rgba(248, 250, 252, 0.35);
 }
 
 .hero {
