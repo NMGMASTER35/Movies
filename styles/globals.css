@@ -586,6 +586,157 @@ button:hover {
   color: #cbd5f5;
 }
 
+.admin-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  background: rgba(15, 19, 27, 0.85);
+  padding: 28px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-header h2 {
+  margin: 8px 0 10px;
+  font-size: 30px;
+}
+
+.admin-header .subtext {
+  max-width: 440px;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-actions button {
+  min-width: 140px;
+}
+
+.admin-metrics {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.admin-metric {
+  background: rgba(12, 15, 22, 0.9);
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-metric h3 {
+  font-size: 28px;
+}
+
+.admin-metric span {
+  color: #cbd5f5;
+  font-size: 13px;
+}
+
+.admin-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.admin-card {
+  background: rgba(12, 15, 22, 0.9);
+  padding: 24px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.admin-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-card-header p {
+  color: #cbd5f5;
+  font-size: 14px;
+}
+
+.admin-list {
+  list-style: none;
+  display: grid;
+  gap: 16px;
+}
+
+.admin-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(18, 22, 32, 0.9);
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.admin-list li span,
+.admin-list li em {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.admin-list li em {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+}
+
+.admin-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-row-actions button {
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+.admin-tags {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+  font-size: 12px;
+}
+
+.admin-pill.muted {
+  background: rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+}
+
 .secondary {
   background: rgba(24, 30, 41, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.15);

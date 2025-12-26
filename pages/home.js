@@ -180,6 +180,96 @@ const MOVIES = [
   },
 ];
 
+const ADMIN_METRICS = [
+  {
+    label: 'Catalog titles',
+    value: '148',
+    detail: '12 new additions this month',
+  },
+  {
+    label: 'Pending requests',
+    value: '7',
+    detail: '3 high priority reviews',
+  },
+  {
+    label: 'Active members',
+    value: '2,431',
+    detail: '58 accounts flagged for review',
+  },
+];
+
+const ADMIN_MOVIES = [
+  {
+    id: 'am1',
+    title: 'Skyline Drift',
+    status: 'Live',
+    updated: 'Today',
+    owner: 'Cameron Reyes',
+  },
+  {
+    id: 'am2',
+    title: 'Orbit City',
+    status: 'Queued',
+    updated: 'Yesterday',
+    owner: 'Inez Calderon',
+  },
+  {
+    id: 'am3',
+    title: 'Hidden Atlas',
+    status: 'Needs QA',
+    updated: '2 days ago',
+    owner: 'Rafael Stone',
+  },
+];
+
+const ADMIN_REQUESTS = [
+  {
+    id: 'ar1',
+    title: 'The Midnight Signal',
+    requestedBy: 'Jordan Lee',
+    timeframe: '2 hours ago',
+    notes: 'Looking for 4K transfer',
+  },
+  {
+    id: 'ar2',
+    title: 'Cobalt Harbor',
+    requestedBy: 'Samira Chen',
+    timeframe: 'Yesterday',
+    notes: 'Festival screening request',
+  },
+  {
+    id: 'ar3',
+    title: 'Parallel Bloom',
+    requestedBy: 'Diego Martín',
+    timeframe: '3 days ago',
+    notes: 'Subtitle availability needed',
+  },
+];
+
+const ADMIN_USERS = [
+  {
+    id: 'au1',
+    name: 'Aria Nguyen',
+    email: 'aria.nguyen@cinema.com',
+    role: 'Member',
+    status: 'Active',
+  },
+  {
+    id: 'au2',
+    name: 'Quinn Patel',
+    email: 'quinn.patel@cinema.com',
+    role: 'Reviewer',
+    status: 'Needs reset',
+  },
+  {
+    id: 'au3',
+    name: 'Miles Carter',
+    email: 'miles.carter@cinema.com',
+    role: 'Admin',
+    status: 'Verified',
+  },
+];
+
 const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery', 'Business'];
 const TYPES = ['All', 'Movie', 'Series'];
 const RATING_FILTERS = [
@@ -221,6 +311,12 @@ export default function Home() {
   const [profileStatus, setProfileStatus] = useState('');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const isAdmin = useMemo(() => isAdminUser(user), [user]);
+  const isAdminPreview = useMemo(() => router.query.admin === 'preview', [router.query.admin]);
+  const canViewAdmin = isAdmin || isAdminPreview;
+  const navTabs = useMemo(
+    () => ['browse', 'watchlist', 'requests', 'profile', ...(canViewAdmin ? ['admin'] : [])],
+    [canViewAdmin],
+  );
   const storageKey = useMemo(() => {
     if (!user?.id && !user?.email) {
       return null;
@@ -252,7 +348,7 @@ export default function Home() {
       const activeUser = data?.session?.user ?? null;
       setUser(activeUser);
 
-      if (!activeUser) {
+      if (!activeUser && !isAdminPreview) {
         router.push('/');
       }
     };
@@ -263,7 +359,7 @@ export default function Home() {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
 
-      if (!activeUser) {
+      if (!activeUser && !isAdminPreview) {
         router.push('/');
       }
     });
@@ -272,7 +368,7 @@ export default function Home() {
       isMounted = false;
       data?.subscription?.unsubscribe();
     };
-  }, [router]);
+  }, [isAdminPreview, router]);
 
   useEffect(() => {
     if (user?.email) {
@@ -585,7 +681,7 @@ export default function Home() {
       <nav className="top-nav">
         <div className="logo">Movie Library</div>
         <div className="nav-links">
-          {['browse', 'watchlist', 'requests', 'profile'].map((tab) => (
+          {navTabs.map((tab) => (
             <button
               key={tab}
               type="button"
@@ -896,6 +992,131 @@ export default function Home() {
             </section>
           )}
         </>
+      )}
+
+      {activeTab === 'admin' && canViewAdmin && (
+        <section className="admin-dashboard">
+          <header className="admin-header">
+            <div>
+              <p className="eyebrow">Admin Dashboard</p>
+              <h2>Operational control center</h2>
+              <p className="subtext">
+                Manage the catalog, approve member requests, and keep user accounts healthy.
+              </p>
+            </div>
+            <div className="admin-actions">
+              <button type="button" className="secondary">
+                Export report
+              </button>
+              <button type="button">Add new movie</button>
+            </div>
+          </header>
+
+          <div className="admin-metrics">
+            {ADMIN_METRICS.map((metric) => (
+              <div key={metric.label} className="admin-metric">
+                <p className="eyebrow">{metric.label}</p>
+                <h3>{metric.value}</h3>
+                <span>{metric.detail}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="admin-grid">
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>Manage movies</h3>
+                  <p>Add, edit, or remove titles from the catalog.</p>
+                </div>
+                <button type="button" className="secondary">
+                  Upload assets
+                </button>
+              </div>
+              <ul className="admin-list">
+                {ADMIN_MOVIES.map((movie) => (
+                  <li key={movie.id}>
+                    <div>
+                      <strong>{movie.title}</strong>
+                      <span>
+                        {movie.status} · Updated {movie.updated} · {movie.owner}
+                      </span>
+                    </div>
+                    <div className="admin-row-actions">
+                      <button type="button" className="secondary">
+                        Edit
+                      </button>
+                      <button type="button">Delete</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>Manage requests</h3>
+                  <p>Approve or reject incoming member requests.</p>
+                </div>
+                <button type="button" className="secondary">
+                  Review queue
+                </button>
+              </div>
+              <ul className="admin-list">
+                {ADMIN_REQUESTS.map((request) => (
+                  <li key={request.id}>
+                    <div>
+                      <strong>{request.title}</strong>
+                      <span>
+                        Requested by {request.requestedBy} · {request.timeframe}
+                      </span>
+                      <em>{request.notes}</em>
+                    </div>
+                    <div className="admin-row-actions">
+                      <button type="button">Approve</button>
+                      <button type="button" className="secondary">
+                        Reject
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>User management</h3>
+                  <p>Reset passwords, update roles, and review member status.</p>
+                </div>
+                <button type="button" className="secondary">
+                  Invite admin
+                </button>
+              </div>
+              <ul className="admin-list">
+                {ADMIN_USERS.map((member) => (
+                  <li key={member.id}>
+                    <div>
+                      <strong>{member.name}</strong>
+                      <span>{member.email}</span>
+                      <div className="admin-tags">
+                        <span className="admin-pill">{member.role}</span>
+                        <span className="admin-pill muted">{member.status}</span>
+                      </div>
+                    </div>
+                    <div className="admin-row-actions">
+                      <button type="button" className="secondary">
+                        Reset password
+                      </button>
+                      <button type="button">Change role</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
       )}
 
       {activeTab === 'watchlist' && (
