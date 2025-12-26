@@ -358,6 +358,12 @@ button:hover {
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
+.movie-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .movie-card {
   background: rgba(18, 22, 32, 0.92);
   border-radius: 18px;
@@ -386,6 +392,10 @@ button:hover {
   height: 220px;
   object-fit: cover;
   border-radius: 12px;
+}
+
+.movie-detail-dropdown {
+  animation: dropdownFade 0.25s ease;
 }
 
 .movie-info h3 {
@@ -439,6 +449,21 @@ button:hover {
   gap: 24px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 24px 45px rgba(0, 0, 0, 0.4);
+}
+
+.movie-detail-dropdown .detail-panel {
+  padding: 24px;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .detail-content {
