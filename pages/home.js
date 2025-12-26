@@ -270,6 +270,84 @@ const ADMIN_USERS = [
   },
 ];
 
+const SOCIAL_REVIEWS = [
+  {
+    id: 'sr1',
+    movieId: 'm1',
+    reviewer: 'Aria Nguyen',
+    rating: 5,
+    time: '2 hours ago',
+    comment: 'A pulse-pounding ride with gorgeous visuals and a killer soundtrack.',
+  },
+  {
+    id: 'sr2',
+    movieId: 'm4',
+    reviewer: 'Jordan Lee',
+    rating: 4,
+    time: 'Yesterday',
+    comment: 'The world-building is incredible. Each episode ends on a perfect cliffhanger.',
+  },
+  {
+    id: 'sr3',
+    movieId: 'm5',
+    reviewer: 'Samira Chen',
+    rating: 5,
+    time: '2 days ago',
+    comment: 'Cozy, heartwarming, and beautifully shot. Perfect weekend watch.',
+  },
+];
+
+const SOCIAL_FOLLOWING = [
+  {
+    id: 'sf1',
+    name: 'Diego Martín',
+    handle: '@diegomartin',
+    focus: 'Indie & drama',
+    followers: '1.4k',
+    status: 'Following',
+  },
+  {
+    id: 'sf2',
+    name: 'Mina Park',
+    handle: '@minapicks',
+    focus: 'Rom-coms & feel-good',
+    followers: '980',
+    status: 'Follow',
+  },
+  {
+    id: 'sf3',
+    name: 'Noah Grant',
+    handle: '@noahgrant',
+    focus: 'Thrillers & mystery',
+    followers: '2.1k',
+    status: 'Following',
+  },
+];
+
+const SHAREABLE_LISTS = [
+  {
+    id: 'sl1',
+    title: 'Top 10 Action Rush',
+    curator: 'Cameron Reyes',
+    followers: '3.2k',
+    movies: ['m1', 'm6'],
+  },
+  {
+    id: 'sl2',
+    title: 'Best New Sci-Fi',
+    curator: 'Inez Calderon',
+    followers: '1.8k',
+    movies: ['m4', 'm3'],
+  },
+  {
+    id: 'sl3',
+    title: 'Cozy Romance Nights',
+    curator: 'Lucia Moreau',
+    followers: '1.1k',
+    movies: ['m5', 'm2'],
+  },
+];
+
 const GENRES = ['All', 'Action', 'Thriller', 'Drama', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery', 'Business'];
 const TYPES = ['All', 'Movie', 'Series'];
 const RATING_FILTERS = [
@@ -324,6 +402,7 @@ export default function Home() {
 
     return `movie-profile-${user?.id || user?.email}`;
   }, [user]);
+  const movieMap = useMemo(() => new Map(MOVIES.map((movie) => [movie.id, movie])), []);
 
   useEffect(() => {
     if (!supabase) {
@@ -460,6 +539,60 @@ export default function Home() {
     const years = [...new Set(MOVIES.map((movie) => movie.year))];
     return ['All', ...years.sort((a, b) => b - a)];
   }, []);
+  const favoriteGenres = useMemo(() => {
+    const genreCounts = {};
+
+    const addGenres = (movieId, weight) => {
+      const movie = movieMap.get(movieId);
+      if (!movie) {
+        return;
+      }
+
+      movie.genres.forEach((genre) => {
+        genreCounts[genre] = (genreCounts[genre] || 0) + weight;
+      });
+    };
+
+    ratings.forEach((entry) => {
+      if (Number(entry.rating) >= 4) {
+        addGenres(entry.movieId, 2);
+      }
+    });
+
+    history.forEach((entry) => addGenres(entry.movieId, 1));
+    watchlist.forEach((entry) => addGenres(entry.movieId, 0.5));
+
+    return Object.entries(genreCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 2)
+      .map(([genre]) => genre);
+  }, [history, movieMap, ratings, watchlist]);
+  const recommendedMovies = useMemo(() => {
+    const seenIds = new Set(history.map((entry) => entry.movieId));
+    const boostedGenres = new Set(favoriteGenres);
+
+    return MOVIES.filter((movie) => !seenIds.has(movie.id))
+      .map((movie) => {
+        let score = movie.score * 10 + movie.popularity;
+        if (boostedGenres.size && movie.genres.some((genre) => boostedGenres.has(genre))) {
+          score += 25;
+        }
+        if (watchlist.some((entry) => entry.movieId === movie.id)) {
+          score += 5;
+        }
+        return { movie, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((entry) => entry.movie);
+  }, [favoriteGenres, history, watchlist]);
+  const trendingMovies = useMemo(
+    () => [...MOVIES].sort((a, b) => b.popularity - a.popularity).slice(0, 3),
+    [],
+  );
+  const recommendationsSummary = favoriteGenres.length
+    ? `Tailored from your love of ${favoriteGenres.join(' & ')} stories.`
+    : 'Personalized using your ratings, watchlist, and recent plays.';
 
   const filteredMovies = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -608,6 +741,17 @@ export default function Home() {
       return '';
     }
     return `${movie.genre} • ${movie.type}`;
+  };
+
+  const renderRecommendationReason = (movie) => {
+    const matchingGenre = favoriteGenres.find((genre) => movie.genres.includes(genre));
+    if (matchingGenre) {
+      return `Because you enjoy ${matchingGenre} titles.`;
+    }
+    if (ratings.length || history.length) {
+      return 'Inspired by your recent activity.';
+    }
+    return 'A rising favorite in your library.';
   };
 
   const handleRequestSubmit = async (event) => {
@@ -801,6 +945,165 @@ export default function Home() {
                   </option>
                 ))}
               </select>
+            </div>
+          </section>
+
+          <section className="recommendations">
+            <header className="section-header">
+              <p className="eyebrow">Recommendations</p>
+              <h2>Personalized suggestions</h2>
+              <p className="subtext">{recommendationsSummary}</p>
+            </header>
+            <div className="recommendations-grid">
+              <div className="recommendation-card">
+                <div className="recommendation-header">
+                  <div>
+                    <h3>Movie picks for you</h3>
+                    <p>Based on your ratings, watch history, and saved titles.</p>
+                  </div>
+                  <span className="badge">Updated just now</span>
+                </div>
+                <div className="recommendation-list">
+                  {recommendedMovies.map((movie) => (
+                    <article key={movie.id} className="recommendation-item">
+                      <img src={movie.poster} alt={movie.title} loading="lazy" />
+                      <div className="recommendation-body">
+                        <div>
+                          <strong>{movie.title}</strong>
+                          <span>
+                            {movie.genre} • {movie.type} • {movie.year}
+                          </span>
+                        </div>
+                        <p className="recommendation-reason">{renderRecommendationReason(movie)}</p>
+                      </div>
+                      <div className="recommendation-actions">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => setSelectedMovie(movie)}
+                        >
+                          View details
+                        </button>
+                        <button type="button" onClick={() => handleAddToWatchlist(movie)}>
+                          Save
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="recommendation-card">
+                <div className="recommendation-header">
+                  <div>
+                    <h3>Trending now</h3>
+                    <p>What the community is streaming this week.</p>
+                  </div>
+                </div>
+                <div className="trend-grid">
+                  {trendingMovies.map((movie) => (
+                    <article key={movie.id} className="trend-card">
+                      <div>
+                        <p className="eyebrow">Trending</p>
+                        <h4>{movie.title}</h4>
+                        <span>
+                          {movie.genre} • {movie.runtime}
+                        </span>
+                      </div>
+                      <div className="trend-meta">
+                        <span>★ {movie.score.toFixed(1)}</span>
+                        <span>{movie.popularity}% buzz</span>
+                      </div>
+                      <button type="button" className="secondary" onClick={() => setSelectedMovie(movie)}>
+                        Open
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="social-section">
+            <header className="section-header">
+              <p className="eyebrow">Social</p>
+              <h2>Follow friends and share lists</h2>
+              <p className="subtext">
+                See what other members are watching, reviewing, and recommending right now.
+              </p>
+            </header>
+            <div className="social-grid">
+              <div className="social-card">
+                <div className="social-header">
+                  <h3>User reviews</h3>
+                  <span className="badge">Live updates</span>
+                </div>
+                <ul className="social-list">
+                  {SOCIAL_REVIEWS.map((review) => (
+                    <li key={review.id}>
+                      <div>
+                        <strong>{review.reviewer}</strong>
+                        <span>{renderMovieTitle(review.movieId)}</span>
+                        <p>{review.comment}</p>
+                      </div>
+                      <div className="social-meta">
+                        <span className="rating-chip">{'★'.repeat(review.rating)}</span>
+                        <span className="social-time">{review.time}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="social-card">
+                <div className="social-header">
+                  <h3>People to follow</h3>
+                  <span className="badge muted">Suggested</span>
+                </div>
+                <ul className="social-list">
+                  {SOCIAL_FOLLOWING.map((member) => (
+                    <li key={member.id}>
+                      <div>
+                        <strong>{member.name}</strong>
+                        <span>{member.handle}</span>
+                        <p>{member.focus}</p>
+                      </div>
+                      <div className="social-meta">
+                        <span className="social-time">{member.followers} followers</span>
+                        <button
+                          type="button"
+                          className={member.status === 'Following' ? 'secondary' : ''}
+                        >
+                          {member.status}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="social-card">
+                <div className="social-header">
+                  <h3>Shareable lists</h3>
+                  <span className="badge">Community</span>
+                </div>
+                <div className="shareable-list">
+                  {SHAREABLE_LISTS.map((list) => (
+                    <article key={list.id} className="shareable-item">
+                      <div>
+                        <strong>{list.title}</strong>
+                        <span>
+                          Curated by {list.curator} · {list.followers} followers
+                        </span>
+                        <p>{list.movies.map((movieId) => renderMovieTitle(movieId)).join(' · ')}</p>
+                      </div>
+                      <button type="button" className="secondary">
+                        Share list
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
 
