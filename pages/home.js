@@ -722,6 +722,18 @@ export default function Home() {
           </div>
         )}
       </nav>
+      <nav className="mobile-nav" aria-label="Primary">
+        {navTabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={activeTab === tab ? 'active' : ''}
+            onClick={() => setActiveTab(tab)}
+          >
+            <span className="mobile-nav-label">{tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
+          </button>
+        ))}
+      </nav>
 
       {authStatus && <p className="status">{authStatus}</p>}
 
