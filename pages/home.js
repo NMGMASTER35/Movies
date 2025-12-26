@@ -294,7 +294,7 @@ export default function Home() {
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedScore, setSelectedScore] = useState('All');
   const [sortBy, setSortBy] = useState('popularity');
-  const [selectedMovie, setSelectedMovie] = useState(MOVIES[0]);
+  const [selectedMovie, setSelectedMovie] = useState(null);
   const [activeTab, setActiveTab] = useState('browse');
   const [requestEmail, setRequestEmail] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('USB');
@@ -503,8 +503,6 @@ export default function Home() {
       }
     });
   }, [searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
-
-  const selectedRating = ratings.find((entry) => entry.movieId === selectedMovie?.id)?.rating || '';
 
   const handleAddToWatchlist = (movie) => {
     setWatchlist((prev) => {
@@ -797,200 +795,224 @@ export default function Home() {
           <section className="catalog">
             <h2>Browse the catalog</h2>
             <div className="movie-grid">
-              {filteredMovies.map((movie) => (
-                <button
-                  key={movie.id}
-                  type="button"
-                  className={`movie-card ${selectedMovie?.id === movie.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedMovie(movie)}
-                >
-                  <img src={movie.poster} alt={movie.title} loading="lazy" />
-                  <div className="movie-info">
-                    <h3>{movie.title}</h3>
-                    <p>
-                      {movie.genre} • {movie.type}
-                    </p>
-                    <div className="movie-tags">
-                      <span className="movie-score">★ {movie.score.toFixed(1)}</span>
-                      <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
-                        {movie.availability}
+              {filteredMovies.map((movie) => {
+                const isSelected = selectedMovie?.id === movie.id;
+                const selectedRating = ratings.find((entry) => entry.movieId === movie.id)?.rating || '';
+
+                return (
+                  <div key={movie.id} className="movie-grid-item">
+                    <button
+                      type="button"
+                      className={`movie-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => setSelectedMovie((prev) => (prev?.id === movie.id ? null : movie))}
+                      aria-expanded={isSelected}
+                    >
+                      <img src={movie.poster} alt={movie.title} loading="lazy" />
+                      <div className="movie-info">
+                        <h3>{movie.title}</h3>
+                        <p>
+                          {movie.genre} • {movie.type}
+                        </p>
+                        <div className="movie-tags">
+                          <span className="movie-score">★ {movie.score.toFixed(1)}</span>
+                          <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
+                            {movie.availability}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="movie-card-chevron" aria-hidden="true">
+                        {isSelected ? '▴' : '▾'}
                       </span>
-                    </div>
+                    </button>
+                    {isSelected && (
+                      <div className="movie-detail-dropdown">
+                        <section className="detail-panel">
+                          <div className="detail-content">
+                            <div>
+                              <p className="eyebrow">Selected title</p>
+                              <h2>{movie.title}</h2>
+                              <p>{movie.description}</p>
+                              <div className="detail-meta">
+                                <span>{movie.genre}</span>
+                                <span>{movie.type}</span>
+                                <span>{movie.year}</span>
+                                <span>{movie.rating}</span>
+                              </div>
+                            </div>
+                            <img src={movie.poster} alt={movie.title} />
+                          </div>
+
+                          <div className="detail-sections">
+                            <div className="detail-card">
+                              <h3>Movie details</h3>
+                              <ul>
+                                <li>
+                                  <span>Director</span>
+                                  <strong>{movie.director}</strong>
+                                </li>
+                                <li>
+                                  <span>Runtime</span>
+                                  <strong>{movie.runtime}</strong>
+                                </li>
+                                <li>
+                                  <span>Release date</span>
+                                  <strong>{movie.releaseDate}</strong>
+                                </li>
+                                <li>
+                                  <span>Genres</span>
+                                  <strong>{movie.genres.join(', ')}</strong>
+                                </li>
+                              </ul>
+                            </div>
+                            <div className="detail-card">
+                              <h3>Cast & crew</h3>
+                              <p>{movie.cast.join(' · ')}</p>
+                            </div>
+                            <div className="detail-card">
+                              <h3>Ratings</h3>
+                              <div className="rating-row">
+                                <span>Audience score</span>
+                                <strong>★ {movie.score.toFixed(1)} / 10</strong>
+                              </div>
+                              <div className="rating-row">
+                                <span>Content rating</span>
+                                <strong>{movie.rating}</strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="detail-actions">
+                            <div>
+                              <h3>Personalize</h3>
+                              <p>Keep your watchlist, ratings, and history up to date.</p>
+                            </div>
+                            <div className="detail-action-grid">
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handleAddToWatchlist(movie)}
+                              >
+                                Add to watchlist
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => handleHistoryMark(movie.id)}
+                              >
+                                Mark as watched
+                              </button>
+                              <label>
+                                Rating
+                                <select
+                                  value={selectedRating}
+                                  onChange={(event) => handleRatingChange(movie.id, event.target.value)}
+                                >
+                                  <option value="">Choose</option>
+                                  <option value="5">★★★★★</option>
+                                  <option value="4">★★★★</option>
+                                  <option value="3">★★★</option>
+                                  <option value="2">★★</option>
+                                  <option value="1">★</option>
+                                </select>
+                              </label>
+                            </div>
+                          </div>
+
+                          {movie.availability === 'Request' ? (
+                            <form className="request-form" onSubmit={handleRequestSubmit}>
+                              <h3>Request this title</h3>
+                              <div className="request-fields">
+                                <label>
+                                  Your email
+                                  <input
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    value={requestEmail}
+                                    onChange={(event) => setRequestEmail(event.target.value)}
+                                    readOnly={Boolean(user?.email)}
+                                  />
+                                </label>
+                                <label>
+                                  Delivery method
+                                  <select
+                                    value={deliveryMethod}
+                                    onChange={(event) => setDeliveryMethod(event.target.value)}
+                                  >
+                                    <option value="USB">USB</option>
+                                    <option value="Private Link">Private Link</option>
+                                    <option value="Other">Other</option>
+                                  </select>
+                                </label>
+                                <label>
+                                  Message (optional)
+                                  <textarea
+                                    rows="3"
+                                    placeholder="Add any details for the admin team."
+                                    value={requestMessage}
+                                    onChange={(event) => setRequestMessage(event.target.value)}
+                                  />
+                                </label>
+                              </div>
+                              <button type="submit" className="primary">
+                                Submit request
+                              </button>
+                              {requestStatus && <p className="status">{requestStatus}</p>}
+                            </form>
+                          ) : (
+                            <div className="streaming-available">
+                              <h3>Ready to watch</h3>
+                              <p>Stream this title instantly from your library.</p>
+                              <button className="primary">Play now</button>
+                            </div>
+                          )}
+
+                          <div className="detail-extra">
+                            <div className="detail-card">
+                              <h3>Watch options</h3>
+                              <ul className="option-list">
+                                {movie.watchOptions.map((option) => (
+                                  <li key={option.platform}>
+                                    <strong>{option.platform}</strong>
+                                    <span>{option.detail}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div className="detail-card">
+                              <h3>Trailers & media</h3>
+                              <div className="media-stack">
+                                <div className="trailer-embed">
+                                  <iframe
+                                    src={`https://www.youtube.com/embed/${movie.trailerId}`}
+                                    title={`${movie.title} trailer`}
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                </div>
+                                <div className="media-grid">
+                                  {movie.gallery.map((image) => (
+                                    <img
+                                      key={image}
+                                      src={image}
+                                      alt={`${movie.title} still`}
+                                      loading="lazy"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+                      </div>
+                    )}
                   </div>
-                </button>
-              ))}
+                );
+              })}
             </div>
             {filteredMovies.length === 0 && (
               <p className="status">No matches found. Try adjusting your filters.</p>
             )}
           </section>
-
-          {selectedMovie && (
-            <section className="detail-panel">
-              <div className="detail-content">
-                <div>
-                  <p className="eyebrow">Selected title</p>
-                  <h2>{selectedMovie.title}</h2>
-                  <p>{selectedMovie.description}</p>
-                  <div className="detail-meta">
-                    <span>{selectedMovie.genre}</span>
-                    <span>{selectedMovie.type}</span>
-                    <span>{selectedMovie.year}</span>
-                    <span>{selectedMovie.rating}</span>
-                  </div>
-                </div>
-                <img src={selectedMovie.poster} alt={selectedMovie.title} />
-              </div>
-
-              <div className="detail-sections">
-                <div className="detail-card">
-                  <h3>Movie details</h3>
-                  <ul>
-                    <li>
-                      <span>Director</span>
-                      <strong>{selectedMovie.director}</strong>
-                    </li>
-                    <li>
-                      <span>Runtime</span>
-                      <strong>{selectedMovie.runtime}</strong>
-                    </li>
-                    <li>
-                      <span>Release date</span>
-                      <strong>{selectedMovie.releaseDate}</strong>
-                    </li>
-                    <li>
-                      <span>Genres</span>
-                      <strong>{selectedMovie.genres.join(', ')}</strong>
-                    </li>
-                  </ul>
-                </div>
-                <div className="detail-card">
-                  <h3>Cast & crew</h3>
-                  <p>{selectedMovie.cast.join(' · ')}</p>
-                </div>
-                <div className="detail-card">
-                  <h3>Ratings</h3>
-                  <div className="rating-row">
-                    <span>Audience score</span>
-                    <strong>★ {selectedMovie.score.toFixed(1)} / 10</strong>
-                  </div>
-                  <div className="rating-row">
-                    <span>Content rating</span>
-                    <strong>{selectedMovie.rating}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="detail-actions">
-                <div>
-                  <h3>Personalize</h3>
-                  <p>Keep your watchlist, ratings, and history up to date.</p>
-                </div>
-                <div className="detail-action-grid">
-                  <button type="button" className="secondary" onClick={() => handleAddToWatchlist(selectedMovie)}>
-                    Add to watchlist
-                  </button>
-                  <button type="button" className="secondary" onClick={() => handleHistoryMark(selectedMovie.id)}>
-                    Mark as watched
-                  </button>
-                  <label>
-                    Rating
-                    <select
-                      value={selectedRating}
-                      onChange={(event) => handleRatingChange(selectedMovie.id, event.target.value)}
-                    >
-                      <option value="">Choose</option>
-                      <option value="5">★★★★★</option>
-                      <option value="4">★★★★</option>
-                      <option value="3">★★★</option>
-                      <option value="2">★★</option>
-                      <option value="1">★</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              {selectedMovie.availability === 'Request' ? (
-                <form className="request-form" onSubmit={handleRequestSubmit}>
-                  <h3>Request this title</h3>
-                  <div className="request-fields">
-                    <label>
-                      Your email
-                      <input
-                        type="email"
-                        placeholder="you@example.com"
-                        value={requestEmail}
-                        onChange={(event) => setRequestEmail(event.target.value)}
-                        readOnly={Boolean(user?.email)}
-                      />
-                    </label>
-                    <label>
-                      Delivery method
-                      <select
-                        value={deliveryMethod}
-                        onChange={(event) => setDeliveryMethod(event.target.value)}
-                      >
-                        <option value="USB">USB</option>
-                        <option value="Private Link">Private Link</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </label>
-                    <label>
-                      Message (optional)
-                      <textarea
-                        rows="3"
-                        placeholder="Add any details for the admin team."
-                        value={requestMessage}
-                        onChange={(event) => setRequestMessage(event.target.value)}
-                      />
-                    </label>
-                  </div>
-                  <button type="submit" className="primary">
-                    Submit request
-                  </button>
-                  {requestStatus && <p className="status">{requestStatus}</p>}
-                </form>
-              ) : (
-                <div className="streaming-available">
-                  <h3>Ready to watch</h3>
-                  <p>Stream this title instantly from your library.</p>
-                  <button className="primary">Play now</button>
-                </div>
-              )}
-
-              <div className="detail-extra">
-                <div className="detail-card">
-                  <h3>Watch options</h3>
-                  <ul className="option-list">
-                    {selectedMovie.watchOptions.map((option) => (
-                      <li key={option.platform}>
-                        <strong>{option.platform}</strong>
-                        <span>{option.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="detail-card">
-                  <h3>Trailers & media</h3>
-                  <div className="media-stack">
-                    <div className="trailer-embed">
-                      <iframe
-                        src={`https://www.youtube.com/embed/${selectedMovie.trailerId}`}
-                        title={`${selectedMovie.title} trailer`}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                      />
-                    </div>
-                    <div className="media-grid">
-                      {selectedMovie.gallery.map((image) => (
-                        <img key={image} src={image} alt={`${selectedMovie.title} still`} loading="lazy" />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          )}
         </>
       )}
 
