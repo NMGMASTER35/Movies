@@ -1,352 +1,16 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase, isAdminUser } from '../services/supabaseClient';
-
-const MOVIES = [
-  {
-    id: 'm1',
-    title: 'Skyline Drift',
-    genre: 'Action',
-    genres: ['Action', 'Thriller'],
-    type: 'Movie',
-    year: 2023,
-    runtime: '2h 7m',
-    rating: 'PG-13',
-    score: 8.6,
-    popularity: 92,
-    releaseDate: '2023-08-18',
-    availability: 'Streaming',
-    director: 'Cameron Reyes',
-    cast: ['Lana Cho', 'Miles Carter', 'Rina Patel'],
-    watchOptions: [
-      { platform: 'Cinemax Stream', detail: '4K UHD · Included' },
-      { platform: 'Prime Pass', detail: 'Rent from $3.99' },
-      { platform: 'USB Vault', detail: 'Shipped in 48 hours' },
-    ],
-    trailerId: 'v5j3K75d0L0',
-    gallery: [
-      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=500&q=80',
-    description: 'An elite driver fights to clear his name in a high-stakes city race.',
-    featured: true,
-  },
-  {
-    id: 'm2',
-    title: 'The Silent Reef',
-    genre: 'Thriller',
-    genres: ['Thriller', 'Mystery'],
-    type: 'Movie',
-    year: 2022,
-    runtime: '1h 54m',
-    rating: 'R',
-    score: 7.8,
-    popularity: 81,
-    releaseDate: '2022-04-02',
-    availability: 'Request',
-    director: 'Noah Grant',
-    cast: ['Avery Brooks', 'Selene Ward', 'Jonah Kim'],
-    watchOptions: [
-      { platform: 'Request Library', detail: 'Admin approval required' },
-      { platform: 'USB Vault', detail: 'Delivered in 3-5 days' },
-      { platform: 'Private Link', detail: 'Encrypted stream' },
-    ],
-    trailerId: 'u1o5y4cVb2w',
-    gallery: [
-      'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
-    description: 'A marine biologist uncovers a hidden conspiracy beneath the waves.',
-  },
-  {
-    id: 'm3',
-    title: 'Glass Frontier',
-    genre: 'Drama',
-    genres: ['Drama', 'Business'],
-    type: 'Series',
-    year: 2021,
-    runtime: '10 episodes',
-    rating: 'TV-MA',
-    score: 8.2,
-    popularity: 77,
-    releaseDate: '2021-11-10',
-    availability: 'Streaming',
-    director: 'Naomi Rivers',
-    cast: ['Elena Voss', 'Andre Mills', 'Kai Nakamura'],
-    watchOptions: [
-      { platform: 'Streamline', detail: 'Season 1-2 · Included' },
-      { platform: 'Download Hub', detail: 'Offline access' },
-      { platform: 'USB Vault', detail: 'Collector bundle' },
-    ],
-    trailerId: 'Xb8VZ2Q9LxA',
-    gallery: [
-      'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
-    description: 'A family-run empire struggles to survive a ruthless tech takeover.',
-  },
-  {
-    id: 'm4',
-    title: 'Orbit City',
-    genre: 'Sci-Fi',
-    genres: ['Sci-Fi', 'Adventure'],
-    type: 'Series',
-    year: 2024,
-    runtime: '8 episodes',
-    rating: 'TV-14',
-    score: 9.1,
-    popularity: 95,
-    releaseDate: '2024-02-16',
-    availability: 'Request',
-    director: 'Inez Calderon',
-    cast: ['Mira Sol', 'Leo Hart', 'Aisha Coleman'],
-    watchOptions: [
-      { platform: 'Request Library', detail: 'Admin approval required' },
-      { platform: 'Starlight Stream', detail: 'HDR access' },
-      { platform: 'USB Vault', detail: 'Priority shipping' },
-    ],
-    trailerId: 'lZQ5lq8uRIE',
-    gallery: [
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1517602302552-471fe67acf66?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=500&q=80',
-    description: 'Citizens in a floating metropolis uncover secrets in the lower decks.',
-  },
-  {
-    id: 'm5',
-    title: 'Café Sonata',
-    genre: 'Romance',
-    genres: ['Romance', 'Drama'],
-    type: 'Movie',
-    year: 2020,
-    runtime: '1h 42m',
-    rating: 'PG',
-    score: 7.4,
-    popularity: 68,
-    releaseDate: '2020-05-12',
-    availability: 'Streaming',
-    director: 'Lucia Moreau',
-    cast: ['Isabelle Laurent', 'Theo Grant', 'Mina Park'],
-    watchOptions: [
-      { platform: 'Café Stream', detail: 'Included with subscription' },
-      { platform: 'Prime Pass', detail: 'Rent from $2.99' },
-      { platform: 'USB Vault', detail: 'Special edition' },
-    ],
-    trailerId: 'aA6C8nJ0qL4',
-    gallery: [
-      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1524985069026-dd778a71c7b4?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=500&q=80',
-    description: 'Two strangers bond over music, pastries, and a Parisian café.',
-  },
-  {
-    id: 'm6',
-    title: 'Hidden Atlas',
-    genre: 'Adventure',
-    genres: ['Adventure', 'Action'],
-    type: 'Movie',
-    year: 2019,
-    runtime: '2h 12m',
-    rating: 'PG-13',
-    score: 7.9,
-    popularity: 73,
-    releaseDate: '2019-09-04',
-    availability: 'Request',
-    director: 'Rafael Stone',
-    cast: ['Tessa Monroe', 'Harper Quinn', 'Omar Reyes'],
-    watchOptions: [
-      { platform: 'Request Library', detail: 'Approval in 24 hours' },
-      { platform: 'Explorer Stream', detail: 'HD access' },
-      { platform: 'USB Vault', detail: 'Adventure pack' },
-    ],
-    trailerId: 'o0Z2re7muX0',
-    gallery: [
-      'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
-      'https://images.unsplash.com/photo-1526948128573-703ee1aeb6fa?auto=format&fit=crop&w=500&q=80',
-    ],
-    poster:
-      'https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=500&q=80',
-    description: 'A cartographer and her crew hunt for a legendary island map.',
-  },
-];
-
-const ADMIN_METRICS = [
-  {
-    label: 'Catalog titles',
-    value: '148',
-    detail: '12 new additions this month',
-  },
-  {
-    label: 'Pending requests',
-    value: '7',
-    detail: '3 high priority reviews',
-  },
-  {
-    label: 'Active members',
-    value: '2,431',
-    detail: '58 accounts flagged for review',
-  },
-];
-
-const ADMIN_MOVIES = [
-  {
-    id: 'am1',
-    title: 'Skyline Drift',
-    status: 'Live',
-    updated: 'Today',
-    owner: 'Cameron Reyes',
-  },
-  {
-    id: 'am2',
-    title: 'Orbit City',
-    status: 'Queued',
-    updated: 'Yesterday',
-    owner: 'Inez Calderon',
-  },
-  {
-    id: 'am3',
-    title: 'Hidden Atlas',
-    status: 'Needs QA',
-    updated: '2 days ago',
-    owner: 'Rafael Stone',
-  },
-];
-
-const ADMIN_REQUESTS = [
-  {
-    id: 'ar1',
-    title: 'The Midnight Signal',
-    requestedBy: 'Jordan Lee',
-    timeframe: '2 hours ago',
-    notes: 'Looking for 4K transfer',
-  },
-  {
-    id: 'ar2',
-    title: 'Cobalt Harbor',
-    requestedBy: 'Samira Chen',
-    timeframe: 'Yesterday',
-    notes: 'Festival screening request',
-  },
-  {
-    id: 'ar3',
-    title: 'Parallel Bloom',
-    requestedBy: 'Diego Martín',
-    timeframe: '3 days ago',
-    notes: 'Subtitle availability needed',
-  },
-];
-
-const ADMIN_USERS = [
-  {
-    id: 'au1',
-    name: 'Aria Nguyen',
-    email: 'aria.nguyen@cinema.com',
-    role: 'Member',
-    status: 'Active',
-  },
-  {
-    id: 'au2',
-    name: 'Quinn Patel',
-    email: 'quinn.patel@cinema.com',
-    role: 'Reviewer',
-    status: 'Needs reset',
-  },
-  {
-    id: 'au3',
-    name: 'Miles Carter',
-    email: 'miles.carter@cinema.com',
-    role: 'Admin',
-    status: 'Verified',
-  },
-];
-
-const SOCIAL_REVIEWS = [
-  {
-    id: 'sr1',
-    movieId: 'm1',
-    reviewer: 'Aria Nguyen',
-    rating: 5,
-    time: '2 hours ago',
-    comment: 'A pulse-pounding ride with gorgeous visuals and a killer soundtrack.',
-  },
-  {
-    id: 'sr2',
-    movieId: 'm4',
-    reviewer: 'Jordan Lee',
-    rating: 4,
-    time: 'Yesterday',
-    comment: 'The world-building is incredible. Each episode ends on a perfect cliffhanger.',
-  },
-  {
-    id: 'sr3',
-    movieId: 'm5',
-    reviewer: 'Samira Chen',
-    rating: 5,
-    time: '2 days ago',
-    comment: 'Cozy, heartwarming, and beautifully shot. Perfect weekend watch.',
-  },
-];
-
-const SOCIAL_FOLLOWING = [
-  {
-    id: 'sf1',
-    name: 'Diego Martín',
-    handle: '@diegomartin',
-    focus: 'Indie & drama',
-    followers: '1.4k',
-    status: 'Following',
-  },
-  {
-    id: 'sf2',
-    name: 'Mina Park',
-    handle: '@minapicks',
-    focus: 'Rom-coms & feel-good',
-    followers: '980',
-    status: 'Follow',
-  },
-  {
-    id: 'sf3',
-    name: 'Noah Grant',
-    handle: '@noahgrant',
-    focus: 'Thrillers & mystery',
-    followers: '2.1k',
-    status: 'Following',
-  },
-];
-
-const SHAREABLE_LISTS = [
-  {
-    id: 'sl1',
-    title: 'Top 10 Action Rush',
-    curator: 'Cameron Reyes',
-    followers: '3.2k',
-    movies: ['m1', 'm6'],
-  },
-  {
-    id: 'sl2',
-    title: 'Best New Sci-Fi',
-    curator: 'Inez Calderon',
-    followers: '1.8k',
-    movies: ['m4', 'm3'],
-  },
-  {
-    id: 'sl3',
-    title: 'Cozy Romance Nights',
-    curator: 'Lucia Moreau',
-    followers: '1.1k',
-    movies: ['m5', 'm2'],
-  },
-];
+import {
+  ADMIN_METRICS,
+  ADMIN_MOVIES,
+  ADMIN_REQUESTS,
+  ADMIN_USERS,
+  MOVIES,
+  SHAREABLE_LISTS,
+  SOCIAL_FOLLOWING,
+  SOCIAL_REVIEWS,
+} from '../services/seedData';
 
 const normalizeMovie = (movie) => {
   const genres = Array.isArray(movie.genres)
@@ -402,6 +66,18 @@ const SORT_OPTIONS = [
 ];
 
 export default function Home() {
+  const DEMO_USER = useMemo(
+    () => ({
+      id: 'demo-user',
+      email: 'demo@movielibrary.app',
+      user_metadata: {
+        full_name: 'Demo Member',
+        avatar_url: '',
+        bio: 'Exploring the catalog in demo mode.',
+      },
+    }),
+    [],
+  );
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('All');
@@ -450,8 +126,30 @@ export default function Home() {
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
 
   useEffect(() => {
+    if (supabase) {
+      return;
+    }
+
+    const storedDemo = typeof window !== 'undefined' ? window.localStorage.getItem('demo-user') : null;
+    if (storedDemo) {
+      try {
+        const parsed = JSON.parse(storedDemo);
+        setUser(parsed);
+        return;
+      } catch (_error) {
+        // Ignore parsing issues; fall back to default demo user.
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('demo-user', JSON.stringify(DEMO_USER));
+    }
+    setUser(DEMO_USER);
+  }, [DEMO_USER, supabase]);
+
+  useEffect(() => {
     if (!supabase) {
-      setAuthStatus('Missing Supabase configuration. Please check your environment settings.');
+      setAuthStatus('Running in demo mode. Connect Supabase to enable accounts.');
       return;
     }
 
@@ -1005,7 +703,18 @@ export default function Home() {
     }
 
     if (!supabase) {
-      setRequestStatus('Missing Supabase configuration. Please check your environment settings.');
+      setAdminRequests((prev) => [
+        {
+          id: `local-${Date.now()}`,
+          title: selectedMovie.title,
+          requestedBy: requesterEmail,
+          timeframe: 'Just now',
+          notes: requestMessage || 'Pending admin follow-up',
+        },
+        ...prev,
+      ]);
+      setRequestStatus('Request saved locally in demo mode.');
+      setRequestMessage('');
       return;
     }
 
@@ -1036,7 +745,11 @@ export default function Home() {
 
   const handleSignOut = async () => {
     if (!supabase) {
-      setAuthStatus('Missing Supabase configuration. Please check your environment settings.');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('demo-user');
+      }
+      setUser(null);
+      router.push('/');
       return;
     }
 
