@@ -3,6 +3,14 @@ import { useRouter } from 'next/router';
 import { supabase } from '../services/supabaseClient';
 
 export default function Home() {
+  const DEMO_USER = {
+    id: 'demo-user',
+    email: 'demo@movielibrary.app',
+    user_metadata: {
+      full_name: 'Demo Member',
+      bio: 'Exploring the catalog in demo mode.',
+    },
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -12,6 +20,14 @@ export default function Home() {
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  const enableDemoMode = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('demo-user', JSON.stringify(DEMO_USER));
+    }
+    setStatusMessage('Demo mode enabled. Loading the library...');
+    router.push('/home');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,7 +40,7 @@ export default function Home() {
     }
 
     if (!supabase) {
-      setError('Missing Supabase configuration. Please check your environment settings.');
+      enableDemoMode();
       return;
     }
 
@@ -80,6 +96,13 @@ export default function Home() {
           <h1>Movie Library</h1>
           <p className="subtext">Log in or activate your invite to start browsing.</p>
         </div>
+
+        {!supabase && (
+          <div className="demo-banner" role="status">
+            <strong>Demo mode</strong>
+            <p>No Supabase credentials detected. Continue in demo mode to try the full experience.</p>
+          </div>
+        )}
 
         <div className="auth-toggle">
           <button
@@ -143,6 +166,13 @@ export default function Home() {
             {isSubmitting ? 'Processing...' : isLogin ? 'Login' : 'Activate Account'}
           </button>
         </form>
+
+        <div className="demo-actions">
+          <p className="subtext">Just exploring? Skip account creation.</p>
+          <button type="button" className="secondary" onClick={enableDemoMode}>
+            Continue in demo mode
+          </button>
+        </div>
 
         {error && <p className="error">{error}</p>}
         {statusMessage && <p className="status">{statusMessage}</p>}
