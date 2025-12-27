@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from '../services/supabaseClient';
+import {
+  clearSupabaseConfig,
+  getSupabaseConfig,
+  saveSupabaseConfig,
+  supabase,
+} from '../services/supabaseClient';
 
 export default function Home() {
   const DEMO_USER = {
@@ -17,8 +22,12 @@ export default function Home() {
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [configStatus, setConfigStatus] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
+  const [supabaseClient, setSupabaseClient] = useState(supabase);
   const router = useRouter();
 
   const enableDemoMode = () => {
@@ -27,6 +36,36 @@ export default function Home() {
     }
     setStatusMessage('Demo mode enabled. Loading the library...');
     router.push('/home');
+  };
+
+  const handleConfigSave = (event) => {
+    event.preventDefault();
+    setError('');
+    setStatusMessage('');
+    setConfigStatus('');
+
+    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
+      setError('Supabase URL and anon key are required to exit demo mode.');
+      return;
+    }
+
+    const client = saveSupabaseConfig({ url: supabaseUrl, anonKey: supabaseAnonKey });
+
+    if (!client) {
+      setError('Unable to initialize Supabase. Double-check your credentials and try again.');
+      return;
+    }
+
+    setSupabaseClient(client);
+    setConfigStatus('Supabase connected! You can now sign in with your account.');
+  };
+
+  const handleConfigClear = () => {
+    clearSupabaseConfig();
+    setSupabaseClient(null);
+    setSupabaseUrl('');
+    setSupabaseAnonKey('');
+    setConfigStatus('Supabase settings cleared. Running in demo mode.');
   };
 
   const handleSubmit = async (e) => {
@@ -39,7 +78,7 @@ export default function Home() {
       return;
     }
 
-    if (!supabase) {
+    if (!supabaseClient) {
       enableDemoMode();
       return;
     }
@@ -48,8 +87,8 @@ export default function Home() {
 
     try {
       const response = isLogin
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({
+        ? await supabaseClient.auth.signInWithPassword({ email, password })
+        : await supabaseClient.auth.signUp({
             email,
             password,
             options: {
@@ -88,6 +127,17 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const storedConfig = getSupabaseConfig();
+
+    if (storedConfig?.url) {
+      setSupabaseUrl(storedConfig.url);
+    }
+    if (storedConfig?.anonKey) {
+      setSupabaseAnonKey(storedConfig.anonKey);
+    }
+  }, []);
+
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -97,7 +147,7 @@ export default function Home() {
           <p className="subtext">Log in or activate your invite to start browsing.</p>
         </div>
 
-        {!supabase && (
+        {!supabaseClient && (
           <div className="demo-banner" role="status">
             <strong>Demo mode</strong>
             <p>No Supabase credentials detected. Continue in demo mode to try the full experience.</p>
@@ -120,6 +170,36 @@ export default function Home() {
             Activate Account
           </button>
         </div>
+
+        {!supabaseClient && (
+          <form className="auth-form" onSubmit={handleConfigSave}>
+            <label>
+              Supabase URL
+              <input
+                type="url"
+                placeholder="https://your-project.supabase.co"
+                value={supabaseUrl}
+                onChange={(event) => setSupabaseUrl(event.target.value)}
+              />
+            </label>
+            <label>
+              Supabase anon key
+              <input
+                type="text"
+                placeholder="Paste anon key"
+                value={supabaseAnonKey}
+                onChange={(event) => setSupabaseAnonKey(event.target.value)}
+              />
+            </label>
+            <button type="submit" className="secondary">
+              Save Supabase settings
+            </button>
+            <button type="button" className="secondary" onClick={handleConfigClear}>
+              Reset to demo mode
+            </button>
+            {configStatus && <p className="status">{configStatus}</p>}
+          </form>
+        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           {!isLogin && (
