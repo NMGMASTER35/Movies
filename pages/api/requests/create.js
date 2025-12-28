@@ -14,11 +14,11 @@ export default async function handler(req, res) {
         {
           movie_id: movieId,
           user_id: userId,
-          requester_email: requesterEmail || null,
           type: type,
           status: 'OPEN',
           message: message,
           delivery_method: deliveryMethod,
+          requester_email: requesterEmail || null,
         },
       ])
       .single();
