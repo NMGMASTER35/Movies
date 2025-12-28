@@ -663,6 +663,11 @@ export default function Home() {
     setProfile((prev) => ({ ...(prev || {}), [field]: value }));
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setUserMenuOpen(false);
+  };
+
   const navTabs = useMemo(
     () => ['browse', 'watchlist', 'requests', 'profile', ...(isAdmin ? ['admin'] : [])],
     [isAdmin]
@@ -689,7 +694,7 @@ export default function Home() {
               key={tab}
               type="button"
               className={activeTab === tab ? 'active' : ''}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
             >
               {tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -710,10 +715,7 @@ export default function Home() {
               <div className="user-dropdown">
                 <button
                   type="button"
-                  onClick={() => {
-                    setActiveTab('profile');
-                    setUserMenuOpen(false);
-                  }}
+                  onClick={() => handleTabChange('profile')}
                 >
                   Profile
                 </button>
@@ -1520,6 +1522,22 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <nav className="mobile-nav">
+        {navTabs.map((tab) => {
+          const label = tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1);
+          return (
+            <button
+              key={tab}
+              type="button"
+              className={activeTab === tab ? 'active' : ''}
+              onClick={() => handleTabChange(tab)}
+            >
+              <span className="mobile-nav-label">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
