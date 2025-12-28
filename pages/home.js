@@ -92,6 +92,16 @@ export default function Home() {
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [communityProfiles, setCommunityProfiles] = useState([]);
+  const [userFollows, setUserFollows] = useState([]);
+  const [userReviews, setUserReviews] = useState([]);
+  const [userLists, setUserLists] = useState([]);
+  const [userListItems, setUserListItems] = useState([]);
+  const [socialFeed, setSocialFeed] = useState([]);
+  const [selectedProfileId, setSelectedProfileId] = useState(null);
+  const [reviewDrafts, setReviewDrafts] = useState({});
+  const [listForm, setListForm] = useState({ title: '', description: '', is_public: true });
+  const [listSelections, setListSelections] = useState({});
   const [newMovieForm, setNewMovieForm] = useState({
     title: '',
     genre: 'Action',
@@ -119,7 +129,17 @@ export default function Home() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
-  const userMap = useMemo(() => new Map(users.map((member) => [member.id, member])), [users]);
+  const userMap = useMemo(() => {
+    const map = new Map();
+    (communityProfiles || []).forEach((member) => map.set(member.id, member));
+    (users || []).forEach((member) => {
+      if (!map.has(member.id)) {
+        map.set(member.id, member);
+      }
+    });
+    return map;
+  }, [communityProfiles, users]);
+  const userListsMap = useMemo(() => new Map(userLists.map((list) => [list.id, list])), [userLists]);
 
   const renderUserName = (userId) => {
     const member = userMap.get(userId);
@@ -131,6 +151,143 @@ export default function Home() {
       return adminFallback.user_id;
     }
     return userId || 'Unassigned';
+  };
+
+  const followerCounts = useMemo(() => {
+    const map = new Map();
+    (userFollows || []).forEach((entry) => {
+      map.set(entry.followee_id, (map.get(entry.followee_id) || 0) + 1);
+    });
+    return map;
+  }, [userFollows]);
+
+  const followingCounts = useMemo(() => {
+    const map = new Map();
+    (userFollows || []).forEach((entry) => {
+      map.set(entry.follower_id, (map.get(entry.follower_id) || 0) + 1);
+    });
+    return map;
+  }, [userFollows]);
+
+  const followingSet = useMemo(
+    () =>
+      new Set(
+        (userFollows || [])
+          .filter((entry) => entry.follower_id === user?.id)
+          .map((entry) => entry.followee_id)
+      ),
+    [userFollows, user?.id]
+  );
+
+  const handleFollowToggle = async (targetUserId) => {
+    if (!supabase || !user || targetUserId === user.id) return;
+    const isFollowing = followingSet.has(targetUserId);
+
+    if (isFollowing) {
+      await supabase.from('user_follows').delete().eq('follower_id', user.id).eq('followee_id', targetUserId);
+    } else {
+      await supabase.from('user_follows').upsert({ follower_id: user.id, followee_id: targetUserId });
+      await supabase.from('user_activity').insert({ actor_id: user.id, type: 'follow', followee_id: targetUserId });
+    }
+
+    const { data } = await supabase.from('user_follows').select('*');
+    setUserFollows(data || []);
+  };
+
+  const handleReviewDraftChange = (movieId, field, value) => {
+    setReviewDrafts((prev) => ({
+      ...prev,
+      [movieId]: { ...(prev[movieId] || {}), [field]: value },
+    }));
+  };
+
+  const handleReviewSubmit = async (movieId) => {
+    if (!supabase || !user) return;
+    const draft = reviewDrafts[movieId] || {};
+    if (!draft.rating || !draft.comment) {
+      setStatusMessage('Rating and comment are required for reviews.');
+      return;
+    }
+
+    const payload = {
+      user_id: user.id,
+      movie_id: movieId,
+      rating: Number(draft.rating),
+      comment: draft.comment,
+    };
+
+    const { data: reviewData, error: reviewError } = await supabase.from('user_reviews').upsert(payload).select('*');
+    if (reviewError) {
+      setError(reviewError.message || 'Unable to save review.');
+      return;
+    }
+
+    setUserReviews((prev) => {
+      const filtered = prev.filter((entry) => !(entry.user_id === user.id && entry.movie_id === movieId));
+      return [...filtered, ...(reviewData || [])];
+    });
+    await supabase.from('user_activity').insert({ actor_id: user.id, type: 'review', movie_id: movieId });
+    setStatusMessage('Review shared.');
+  };
+
+  const handleCreateList = async (event) => {
+    event.preventDefault();
+    if (!supabase || !user || !listForm.title) {
+      setStatusMessage('List title is required.');
+      return;
+    }
+
+    const payload = {
+      user_id: user.id,
+      title: listForm.title,
+      description: listForm.description,
+      is_public: Boolean(listForm.is_public),
+    };
+
+    const { data: newList, error: listError } = await supabase.from('user_lists').insert(payload).select('*');
+    if (listError) {
+      setError(listError.message || 'Unable to create list.');
+      return;
+    }
+
+    setUserLists((prev) => [...prev, ...(newList || [])]);
+    setListForm({ title: '', description: '', is_public: true });
+    await supabase.from('user_activity').insert({ actor_id: user.id, type: 'list' });
+    setStatusMessage('List created.');
+  };
+
+  const handleAddToList = async (movieId, listId) => {
+    if (!supabase || !user || !listId) return;
+
+    const payload = { list_id: listId, movie_id: movieId };
+    const { data, error: listItemError } = await supabase.from('user_list_items').upsert(payload).select('*');
+    if (listItemError) {
+      setError(listItemError.message || 'Unable to add to list.');
+      return;
+    }
+
+    setUserListItems((prev) => {
+      const filtered = prev.filter((entry) => !(entry.list_id === listId && entry.movie_id === movieId));
+      return [...filtered, ...(data || [])];
+    });
+    await supabase.from('user_activity').insert({ actor_id: user.id, type: 'list_item', movie_id: movieId, list_id: listId });
+    setStatusMessage('Added to your list.');
+  };
+
+  const describeActivity = (activity) => {
+    const actor = renderUserName(activity.actor_id);
+    switch (activity.type) {
+      case 'review':
+        return `${actor} reviewed ${renderMovieTitle(activity.movie_id)}`;
+      case 'list':
+        return `${actor} created a new list`;
+      case 'list_item':
+        return `${actor} added a movie to ${userListsMap.get(activity.list_id)?.title || 'a list'}`;
+      case 'follow':
+        return `${actor} followed someone new`;
+      default:
+        return `${actor} shared an update`;
+    }
   };
 
   useEffect(() => {
@@ -201,6 +358,11 @@ export default function Home() {
           ratingsResult,
           myRequestsResult,
           adminUserResult,
+          followsResult,
+          communityProfilesResult,
+          reviewsResult,
+          listsResult,
+          listItemsResult,
         ] = await Promise.all([
           supabase.from('movies').select('*').order('popularity', { ascending: false }),
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
@@ -213,6 +375,11 @@ export default function Home() {
             .eq('user_id', user.id)
             .order('created_at', { ascending: false }),
           supabase.from('admin_users').select('role').eq('user_id', user.id).maybeSingle(),
+          supabase.from('user_follows').select('*'),
+          supabase.from('profiles').select('id, email, full_name, avatar_url, bio, role'),
+          supabase.from('user_reviews').select('*'),
+          supabase.from('user_lists').select('*'),
+          supabase.from('user_list_items').select('*'),
         ]);
 
         if (moviesResult.error) throw moviesResult.error;
@@ -236,6 +403,27 @@ export default function Home() {
 
         if (!myRequestsResult.error && myRequestsResult.data) {
           setMyRequests(myRequestsResult.data);
+        }
+
+        if (!followsResult.error && followsResult.data) {
+          setUserFollows(followsResult.data);
+        }
+
+        if (!communityProfilesResult.error && communityProfilesResult.data) {
+          setCommunityProfiles(communityProfilesResult.data);
+          setSelectedProfileId((prev) => prev || communityProfilesResult.data?.find((p) => p.id === user.id)?.id || user.id);
+        }
+
+        if (!reviewsResult.error && reviewsResult.data) {
+          setUserReviews(reviewsResult.data);
+        }
+
+        if (!listsResult.error && listsResult.data) {
+          setUserLists(listsResult.data);
+        }
+
+        if (!listItemsResult.error && listItemsResult.data) {
+          setUserListItems(listItemsResult.data);
         }
 
         const adminFlag = Boolean(
@@ -325,6 +513,27 @@ export default function Home() {
           setAdminUsers([]);
         }
 
+        const followingIds = (followsResult.data || [])
+          .filter((entry) => entry.follower_id === user.id)
+          .map((entry) => entry.followee_id);
+
+        if (followingIds.length > 0) {
+          const { data: activityData, error: activityError } = await supabase
+            .from('user_activity')
+            .select('*')
+            .in('actor_id', followingIds)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (!activityError && activityData) {
+            setSocialFeed(activityData);
+          } else {
+            setSocialFeed([]);
+          }
+        } else {
+          setSocialFeed([]);
+        }
+
         setLoadingMessage('');
       } catch (loadError) {
         setError(loadError.message || 'Unable to load data.');
@@ -334,6 +543,36 @@ export default function Home() {
 
     loadData();
   }, [user]);
+
+  useEffect(() => {
+    if (!supabase || !user?.id) return;
+    const followingIds = Array.from(followingSet);
+    if (followingIds.length === 0) {
+      setSocialFeed([]);
+      return;
+    }
+
+    const refreshFeed = async () => {
+      const { data, error } = await supabase
+        .from('user_activity')
+        .select('*')
+        .in('actor_id', followingIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (!error) {
+        setSocialFeed(data || []);
+      }
+    };
+
+    refreshFeed();
+  }, [followingSet, supabase, user?.id]);
+
+  useEffect(() => {
+    if (!selectedProfileId && communityProfiles.length > 0) {
+      const preferred = communityProfiles.find((profile) => profile.id === user?.id) || communityProfiles[0];
+      setSelectedProfileId(preferred?.id || null);
+    }
+  }, [communityProfiles, selectedProfileId, user?.id]);
 
   const availableYears = useMemo(() => {
     const years = [...new Set(movies.map((movie) => movie.year).filter(Boolean))];
@@ -669,7 +908,7 @@ export default function Home() {
   };
 
   const navTabs = useMemo(
-    () => ['browse', 'watchlist', 'requests', 'profile', ...(isAdmin ? ['admin'] : [])],
+    () => ['browse', 'feed', 'community', 'watchlist', 'requests', 'profile', ...(isAdmin ? ['admin'] : [])],
     [isAdmin]
   );
   const adminUserIds = useMemo(() => new Set((adminUsers || []).map((entry) => entry.user_id)), [adminUsers]);
@@ -816,6 +1055,12 @@ export default function Home() {
               {filteredMovies.map((movie) => {
                 const isSelected = selectedMovie?.id === movie.id;
                 const rating = ratings.find((entry) => entry.movie_id === movie.id)?.rating || '';
+                const socialReviews = userReviews.filter((review) => review.movie_id === movie.id);
+                const myExistingReview = socialReviews.find((review) => review.user_id === user?.id);
+                const draftRating = reviewDrafts[movie.id]?.rating ?? myExistingReview?.rating ?? '';
+                const draftComment = reviewDrafts[movie.id]?.comment ?? myExistingReview?.comment ?? '';
+                const listsContainingMovie = userListItems.filter((entry) => entry.movie_id === movie.id);
+                const myLists = userLists.filter((list) => list.user_id === user?.id);
 
                 return (
                   <div key={movie.id} className="movie-grid-item">
@@ -980,6 +1225,67 @@ export default function Home() {
 
                           <div className="detail-extra">
                             <div className="detail-card">
+                              <h3>Social reviews</h3>
+                              {socialReviews.length === 0 && <p className="status">No community reviews yet.</p>}
+                              <ul className="review-list">
+                                {socialReviews.map((review) => {
+                                  const reviewer = userMap.get(review.user_id) || {};
+                                  return (
+                                    <li key={`${review.user_id}-${review.movie_id}`} className="review-item">
+                                      <div className="reviewer-meta">
+                                        <div className="avatar chip">
+                                          {reviewer.avatar_url ? (
+                                            <img src={reviewer.avatar_url} alt={renderUserName(review.user_id)} />
+                                          ) : (
+                                            <span>{(renderUserName(review.user_id) || 'U').charAt(0)}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <strong>{renderUserName(review.user_id)}</strong>
+                                          <p className="subtext">
+                                            {review.rating ? `★ ${Number(review.rating).toFixed(1)} • ` : ''}
+                                            {review.created_at ? new Date(review.created_at).toLocaleString() : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <p className="review-comment">{review.comment}</p>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                              <div className="review-form">
+                                <h4>Share your take</h4>
+                                <div className="review-grid">
+                                  <select
+                                    value={draftRating}
+                                    onChange={(event) => handleReviewDraftChange(movie.id, 'rating', event.target.value)}
+                                  >
+                                    <option value="">Select rating</option>
+                                    <option value="5">★★★★★</option>
+                                    <option value="4">★★★★</option>
+                                    <option value="3">★★★</option>
+                                    <option value="2">★★</option>
+                                    <option value="1">★</option>
+                                  </select>
+                                  <textarea
+                                    rows="3"
+                                    placeholder="What did you think?"
+                                    value={draftComment}
+                                    onChange={(event) => handleReviewDraftChange(movie.id, 'comment', event.target.value)}
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  className="primary"
+                                  onClick={() => handleReviewSubmit(movie.id)}
+                                  disabled={!draftRating || !draftComment}
+                                >
+                                  Post review
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="detail-card">
                               <h3>Watch options</h3>
                               <ul className="option-list">
                                 {(movie.watchOptions || []).map((option, index) => (
@@ -1014,6 +1320,55 @@ export default function Home() {
                                 </div>
                               </div>
                             )}
+                            <div className="detail-card">
+                              <h3>Lists & saves</h3>
+                              <p className="subtext">Add this title to your lists or explore public collections.</p>
+                              <div className="list-add-row">
+                                <select
+                                  value={listSelections[movie.id] || ''}
+                                  onChange={(event) =>
+                                    setListSelections((prev) => ({ ...prev, [movie.id]: event.target.value }))
+                                  }
+                                >
+                                  <option value="">Choose one of your lists</option>
+                                  {myLists.map((list) => (
+                                    <option key={list.id} value={list.id}>
+                                      {list.title} {list.is_public ? '(Public)' : '(Private)'}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="secondary"
+                                  disabled={!listSelections[movie.id]}
+                                  onClick={() => handleAddToList(movie.id, listSelections[movie.id])}
+                                >
+                                  Add
+                                </button>
+                              </div>
+                              <ul className="option-list">
+                                {listsContainingMovie
+                                  .map((entry) => userListsMap.get(entry.list_id))
+                                  .filter((list) => list && (list.is_public || list.user_id === user?.id))
+                                  .map((list) => (
+                                    <li key={`list-${list.id}`}>
+                                      <div className="list-chip">
+                                        <div>
+                                          <strong>{list.title}</strong>
+                                          {list.description && <p className="subtext">{list.description}</p>}
+                                          <p className="subtext">
+                                            By {renderUserName(list.user_id)} •{' '}
+                                            {list.is_public ? 'Public' : 'Private'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </li>
+                                  ))}
+                                {listsContainingMovie.length === 0 && (
+                                  <li className="subtext">This title hasn’t been added to any public lists yet.</li>
+                                )}
+                              </ul>
+                            </div>
                           </div>
                         </section>
                       </div>
@@ -1027,6 +1382,209 @@ export default function Home() {
             )}
           </section>
         </>
+      )}
+
+      {activeTab === 'feed' && (
+        <section className="profile-section">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Social</p>
+              <h2>Activity from people you follow</h2>
+              <p className="subtext">See the latest reviews, lists, and saves from your network.</p>
+            </div>
+          </div>
+          <div className="feed-grid">
+            {socialFeed.length === 0 && (
+              <p className="status">Follow community members to see their activity here.</p>
+            )}
+            {socialFeed.map((activity) => {
+              const actorProfile = userMap.get(activity.actor_id) || {};
+              return (
+                <div key={activity.id || `${activity.actor_id}-${activity.created_at}`} className="feed-card">
+                  <div className="feed-meta">
+                    <div className="avatar chip">
+                      {actorProfile.avatar_url ? (
+                        <img src={actorProfile.avatar_url} alt={renderUserName(activity.actor_id)} />
+                      ) : (
+                        <span>{(renderUserName(activity.actor_id) || 'U').charAt(0)}</span>
+                      )}
+                    </div>
+                    <div>
+                      <strong>{renderUserName(activity.actor_id)}</strong>
+                      <p className="subtext">{activity.created_at ? new Date(activity.created_at).toLocaleString() : ''}</p>
+                    </div>
+                  </div>
+                  <p className="feed-text">{describeActivity(activity)}</p>
+                  {activity.movie_id && (
+                    <p className="feed-detail">Movie: {renderMovieTitle(activity.movie_id)}</p>
+                  )}
+                  {activity.list_id && (
+                    <p className="feed-detail">List: {userListsMap.get(activity.list_id)?.title || activity.list_id}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'community' && (
+        <section className="profile-section community-view">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Community</p>
+              <h2>Profiles & following</h2>
+              <p className="subtext">Connect with other members, follow their lists, and browse their reviews.</p>
+            </div>
+          </div>
+          <div className="community-grid">
+            <div className="member-column">
+              {communityProfiles.length === 0 && <p className="status">No community profiles yet.</p>}
+              {communityProfiles.map((member) => (
+                <button
+                  key={member.id}
+                  type="button"
+                  className={`member-card ${selectedProfileId === member.id ? 'active' : ''}`}
+                  onClick={() => setSelectedProfileId(member.id)}
+                >
+                  <div className="avatar chip">
+                    {member.avatar_url ? <img src={member.avatar_url} alt={member.full_name || member.email} /> : <span>{(member.full_name || member.email || 'U').charAt(0)}</span>}
+                  </div>
+                  <div>
+                    <h4>{member.full_name || member.email}</h4>
+                    <p className="subtext">{member.bio || 'No bio yet.'}</p>
+                    <div className="member-stats">
+                      <span>{followerCounts.get(member.id) || 0} followers</span>
+                      <span>{followingCounts.get(member.id) || 0} following</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="profile-column">
+              {selectedProfileId ? (
+                (() => {
+                  const selectedProfile = communityProfiles.find((entry) => entry.id === selectedProfileId);
+                  const profileReviews = userReviews.filter((entry) => entry.user_id === selectedProfileId);
+                  const profileLists = userLists.filter(
+                    (list) => list.user_id === selectedProfileId && (list.is_public || selectedProfileId === user?.id)
+                  );
+                  const profileFollowers = userFollows
+                    .filter((entry) => entry.followee_id === selectedProfileId)
+                    .map((entry) => entry.follower_id);
+                  const profileFollowing = userFollows
+                    .filter((entry) => entry.follower_id === selectedProfileId)
+                    .map((entry) => entry.followee_id);
+                  const isFollowingSelected = followingSet.has(selectedProfileId);
+
+                  if (!selectedProfile) {
+                    return <p className="status">Select a profile to view their activity.</p>;
+                  }
+
+                  return (
+                    <div className="profile-detail">
+                      <div className="profile-hero">
+                        <div className="avatar chip large">
+                          {selectedProfile.avatar_url ? (
+                            <img src={selectedProfile.avatar_url} alt={selectedProfile.full_name || selectedProfile.email} />
+                          ) : (
+                            <span>{(selectedProfile.full_name || selectedProfile.email || 'U').charAt(0)}</span>
+                          )}
+                        </div>
+                        <div>
+                          <h3>{selectedProfile.full_name || selectedProfile.email}</h3>
+                          <p className="subtext">{selectedProfile.bio || 'This user has not added a bio yet.'}</p>
+                          <div className="member-stats">
+                            <span>{profileFollowers.length} followers</span>
+                            <span>{profileFollowing.length} following</span>
+                          </div>
+                          {selectedProfile.id !== user?.id && (
+                            <button
+                              type="button"
+                              className={isFollowingSelected ? 'secondary' : 'primary'}
+                              onClick={() => handleFollowToggle(selectedProfile.id)}
+                            >
+                              {isFollowingSelected ? 'Unfollow' : 'Follow'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="profile-subgrid">
+                        <div className="detail-card">
+                          <h4>Followers</h4>
+                          <ul className="pill-list">
+                            {profileFollowers.length === 0 && <li className="subtext">No followers yet.</li>}
+                            {profileFollowers.map((followerId) => (
+                              <li key={`follower-${followerId}`} className="pill">
+                                {renderUserName(followerId)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="detail-card">
+                          <h4>Following</h4>
+                          <ul className="pill-list">
+                            {profileFollowing.length === 0 && <li className="subtext">Not following anyone yet.</li>}
+                            {profileFollowing.map((followeeId) => (
+                              <li key={`following-${followeeId}`} className="pill">
+                                {renderUserName(followeeId)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="detail-card">
+                        <h4>Reviews</h4>
+                        <ul className="review-list">
+                          {profileReviews.length === 0 && <p className="status">No reviews shared yet.</p>}
+                          {profileReviews.map((review) => (
+                            <li key={`${review.movie_id}-${review.user_id}`} className="review-item">
+                              <div className="reviewer-meta">
+                                <div>
+                                  <strong>{renderMovieTitle(review.movie_id)}</strong>
+                                  <p className="subtext">
+                                    ★ {Number(review.rating || 0).toFixed(1)} •{' '}
+                                    {review.created_at ? new Date(review.created_at).toLocaleDateString() : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <p className="review-comment">{review.comment}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="detail-card">
+                        <h4>Public lists</h4>
+                        <div className="list-grid">
+                          {profileLists.length === 0 && <p className="status">No public lists yet.</p>}
+                          {profileLists.map((list) => {
+                            const itemCount = userListItems.filter((entry) => entry.list_id === list.id).length;
+                            return (
+                              <div key={list.id} className="list-card">
+                                <div>
+                                  <h3>{list.title}</h3>
+                                  {list.description && <p className="subtext">{list.description}</p>}
+                                  <p className="subtext">{itemCount} movies</p>
+                                </div>
+                                <span className="badge">{list.is_public ? 'Public' : 'Private'}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <p className="status">Select someone to view their profile.</p>
+              )}
+            </div>
+          </div>
+        </section>
       )}
 
       {activeTab === 'watchlist' && (
@@ -1138,6 +1696,74 @@ export default function Home() {
               {isSavingProfile ? 'Saving…' : 'Save profile'}
             </button>
           </form>
+
+          <div className="profile-social">
+            <div className="detail-card">
+              <h3>Your social snapshot</h3>
+              <div className="member-stats">
+                <span>{followerCounts.get(user?.id) || 0} followers</span>
+                <span>{followingCounts.get(user?.id) || 0} following</span>
+                <span>
+                  {userReviews.filter((entry) => entry.user_id === user?.id).length} reviews shared
+                </span>
+              </div>
+            </div>
+            <div className="detail-card">
+              <h3>Create a new list</h3>
+              <form className="profile-form inline" onSubmit={handleCreateList}>
+                <label>
+                  Title
+                  <input
+                    type="text"
+                    value={listForm.title}
+                    onChange={(event) => setListForm((prev) => ({ ...prev, title: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Description (optional)
+                  <textarea
+                    rows="2"
+                    value={listForm.description}
+                    onChange={(event) => setListForm((prev) => ({ ...prev, description: event.target.value }))}
+                  />
+                </label>
+                <label className="checkbox-inline">
+                  <input
+                    type="checkbox"
+                    checked={listForm.is_public}
+                    onChange={(event) => setListForm((prev) => ({ ...prev, is_public: event.target.checked }))}
+                  />
+                  <span>Make public</span>
+                </label>
+                <button type="submit" className="secondary">
+                  Save list
+                </button>
+              </form>
+            </div>
+            <div className="detail-card">
+              <h3>Your lists</h3>
+              <div className="list-grid">
+                {userLists.filter((list) => list.user_id === user?.id).length === 0 && (
+                  <p className="status">No lists yet. Create one to share with others.</p>
+                )}
+                {userLists
+                  .filter((list) => list.user_id === user?.id)
+                  .map((list) => {
+                    const itemCount = userListItems.filter((entry) => entry.list_id === list.id).length;
+                    return (
+                      <div key={list.id} className="list-card">
+                        <div>
+                          <h3>{list.title}</h3>
+                          {list.description && <p className="subtext">{list.description}</p>}
+                          <p className="subtext">{itemCount} movies</p>
+                        </div>
+                        <span className="badge">{list.is_public ? 'Public' : 'Private'}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
