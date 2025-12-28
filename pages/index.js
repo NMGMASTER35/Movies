@@ -5,9 +5,9 @@ import {
   authenticateLocalUser,
   getSessionUser,
   loadLocalState,
-  persistSessionUser,
   registerLocalUser,
   saveLocalState,
+  setSessionUser,
 } from '../services/localDatabase';
 
 export default function Home() {
@@ -47,7 +47,7 @@ export default function Home() {
       saveLocalState({ ...state, users: [...state.users, guestUser] });
     }
 
-    persistSessionUser(DEMO_USER.id);
+    setSessionUser(DEMO_USER.id);
     setStatusMessage('Guest mode enabled. Loading the library...');
     router.push('/home');
   };
@@ -92,7 +92,7 @@ export default function Home() {
           return;
         }
 
-        persistSessionUser(authUser);
+        setSessionUser(authUser);
 
         if (isLogin) {
           setStatusMessage('Welcome back!');
