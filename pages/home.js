@@ -110,29 +110,6 @@ export default function Home() {
   });
   const [isUpdatingMovie, setIsUpdatingMovie] = useState(false);
   const [deletingMovieId, setDeletingMovieId] = useState(null);
-  const [editingMovie, setEditingMovie] = useState(null);
-  const [editMovieForm, setEditMovieForm] = useState({
-    title: '',
-    genre: 'Action',
-    type: 'Movie',
-    availability: 'Request',
-    year: new Date().getFullYear(),
-    runtime: '',
-    rating: 'PG-13',
-    description: '',
-    detail: '',
-    director: '',
-    trailerId: '',
-    usbLocation: '',
-    platform: '',
-    poster: '',
-    genresText: '',
-    castMembersText: '',
-    galleryText: '',
-    watchOptionsText: '',
-  });
-  const [isUpdatingMovie, setIsUpdatingMovie] = useState(false);
-  const [deletingMovieId, setDeletingMovieId] = useState(null);
   const [users, setUsers] = useState([]);
   const [loadingMessage, setLoadingMessage] = useState('Loading your account…');
   const [statusMessage, setStatusMessage] = useState('');
