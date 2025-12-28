@@ -1553,7 +1553,111 @@ button:disabled {
     flex-wrap: wrap;
   }
 
-  .social-meta {
-    align-items: flex-start;
+.social-meta {
+  align-items: flex-start;
+}
+}
+
+.announcement-center {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: min(380px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 2000;
+  pointer-events: none;
+}
+
+.announcement-card {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: linear-gradient(145deg, rgba(18, 23, 35, 0.98), rgba(10, 14, 24, 0.95));
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(14px);
+  position: relative;
+  overflow: hidden;
+  animation: slide-in 180ms ease-out;
+}
+
+.announcement-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.08), transparent 40%);
+  pointer-events: none;
+}
+
+.announcement-card.info {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 16px 40px rgba(99, 102, 241, 0.25);
+}
+
+.announcement-card.success {
+  border-color: rgba(34, 197, 94, 0.45);
+  box-shadow: 0 16px 40px rgba(34, 197, 94, 0.25);
+}
+
+.announcement-card.warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 16px 40px rgba(245, 158, 11, 0.25);
+}
+
+.announcement-card.error {
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 16px 40px rgba(239, 68, 68, 0.25);
+}
+
+.announcement-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.announcement-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.announcement-message {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.announcement-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  box-shadow: none;
+  padding: 6px 8px;
+  min-width: auto;
+}
+
+.announcement-close:hover {
+  color: var(--text);
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translate3d(0, -12px, 0);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
   }
 }
