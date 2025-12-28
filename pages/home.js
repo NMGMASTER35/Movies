@@ -87,6 +87,52 @@ export default function Home() {
   const [adminMovies, setAdminMovies] = useState([]);
   const [adminMetrics, setAdminMetrics] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
+  const [editingMovie, setEditingMovie] = useState(null);
+  const [editMovieForm, setEditMovieForm] = useState({
+    title: '',
+    genre: 'Action',
+    type: 'Movie',
+    availability: 'Request',
+    year: new Date().getFullYear(),
+    runtime: '',
+    rating: 'PG-13',
+    description: '',
+    detail: '',
+    director: '',
+    trailerId: '',
+    usbLocation: '',
+    platform: '',
+    poster: '',
+    genresText: '',
+    castMembersText: '',
+    galleryText: '',
+    watchOptionsText: '',
+  });
+  const [isUpdatingMovie, setIsUpdatingMovie] = useState(false);
+  const [deletingMovieId, setDeletingMovieId] = useState(null);
+  const [editingMovie, setEditingMovie] = useState(null);
+  const [editMovieForm, setEditMovieForm] = useState({
+    title: '',
+    genre: 'Action',
+    type: 'Movie',
+    availability: 'Request',
+    year: new Date().getFullYear(),
+    runtime: '',
+    rating: 'PG-13',
+    description: '',
+    detail: '',
+    director: '',
+    trailerId: '',
+    usbLocation: '',
+    platform: '',
+    poster: '',
+    genresText: '',
+    castMembersText: '',
+    galleryText: '',
+    watchOptionsText: '',
+  });
+  const [isUpdatingMovie, setIsUpdatingMovie] = useState(false);
+  const [deletingMovieId, setDeletingMovieId] = useState(null);
   const [users, setUsers] = useState([]);
   const [loadingMessage, setLoadingMessage] = useState('Loading your account…');
   const [statusMessage, setStatusMessage] = useState('');
@@ -831,6 +877,28 @@ export default function Home() {
     }
   };
 
+  const refreshCatalogData = async () => {
+    const [{ data: refreshed, error: moviesError }, { data: adminCatalog, error: adminMoviesError }] = await Promise.all(
+      [
+        supabase.from('movies').select('*').order('popularity', { ascending: false }),
+        isAdmin
+          ? supabase
+              .from('admin_movies')
+              .select('id, status, notes, movie_id, movies (title, availability, popularity)')
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+      ]
+    );
+
+    if (!moviesError && refreshed) {
+      setMovies((refreshed || []).map(normalizeMovie));
+    }
+
+    if (!adminMoviesError && adminCatalog) {
+      setAdminMovies(adminCatalog || []);
+    }
+  };
+
   const handleAddMovie = async (event) => {
     event.preventDefault();
     if (!supabase || !newMovieForm.title) {
@@ -895,7 +963,111 @@ export default function Home() {
       galleryText: '',
       watchOptionsText: '',
     });
+    await refreshCatalogData();
     setStatusMessage('Movie added.');
+  };
+
+  const handleEditMovieStart = (movieId) => {
+    const movie =
+      movieMap.get(movieId) ||
+      (adminMovies.find((entry) => entry.movie_id === movieId)?.movies
+        ? normalizeMovie({ ...adminMovies.find((entry) => entry.movie_id === movieId).movies, id: movieId })
+        : null);
+    if (!movie) {
+      setStatusMessage('Movie not found.');
+      return;
+    }
+
+    setEditingMovie(movie);
+    setEditMovieForm({
+      title: movie.title || '',
+      genre: movie.genre || 'Action',
+      type: movie.type || 'Movie',
+      availability: movie.availability || 'Request',
+      year: movie.year || new Date().getFullYear(),
+      runtime: movie.runtime || '',
+      rating: movie.rating || 'PG-13',
+      description: movie.description || '',
+      detail: movie.detail || '',
+      director: movie.director || '',
+      trailerId: movie.trailerId || '',
+      usbLocation: movie.usbLocation || '',
+      platform: movie.platform || '',
+      poster: movie.poster || '',
+      genresText: (movie.genres || []).join(', '),
+      castMembersText: (movie.castMembers || []).join(', '),
+      galleryText: (movie.gallery || []).join(', '),
+      watchOptionsText: (movie.watchOptions || [])
+        .map(({ platform: optionPlatform, detail, instruction }) =>
+          [optionPlatform, detail, instruction].filter(Boolean).join(' | ')
+        )
+        .join('\n'),
+    });
+    setStatusMessage('');
+    setError('');
+  };
+
+  const handleEditMovieFieldChange = (field, value) => {
+    setEditMovieForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleUpdateMovie = async (event) => {
+    event.preventDefault();
+    if (!supabase || !editingMovie) return;
+    setIsUpdatingMovie(true);
+
+    const payload = {
+      title: editMovieForm.title,
+      genre: editMovieForm.genre,
+      genres: parseList(editMovieForm.genresText),
+      type: editMovieForm.type,
+      availability: editMovieForm.availability,
+      year: Number(editMovieForm.year) || null,
+      runtime: editMovieForm.runtime,
+      rating: editMovieForm.rating,
+      description: editMovieForm.description,
+      detail: editMovieForm.detail,
+      director: editMovieForm.director,
+      trailer_id: editMovieForm.trailerId,
+      usb_location: editMovieForm.usbLocation,
+      platform: editMovieForm.platform,
+      cast_members: parseList(editMovieForm.castMembersText),
+      gallery: parseList(editMovieForm.galleryText),
+      watch_options: parseWatchOptions(editMovieForm.watchOptionsText),
+      poster: editMovieForm.poster,
+    };
+
+    const { error: updateError } = await supabase.from('movies').update(payload).eq('id', editingMovie.id);
+    if (updateError) {
+      setStatusMessage(updateError.message || 'Unable to update movie.');
+      setIsUpdatingMovie(false);
+      return;
+    }
+
+    await refreshCatalogData();
+    setEditingMovie(null);
+    setIsUpdatingMovie(false);
+    setStatusMessage('Movie updated.');
+  };
+
+  const handleDeleteMovie = async (movieId) => {
+    if (!supabase) return;
+    setDeletingMovieId(movieId);
+
+    const { error: deleteError } = await supabase.from('movies').delete().eq('id', movieId);
+    if (deleteError) {
+      setStatusMessage(deleteError.message || 'Unable to delete movie.');
+      setDeletingMovieId(null);
+      return;
+    }
+
+    await supabase.from('admin_movies').delete().eq('movie_id', movieId);
+    await refreshCatalogData();
+    if (editingMovie?.id === movieId) {
+      setEditingMovie(null);
+    }
+    setDeletingMovieId(null);
+    setStatusMessage('Movie deleted.');
   };
 
   const handleProfileFieldChange = (field, value) => {
@@ -2044,10 +2216,187 @@ export default function Home() {
                       </div>
                       {entry.notes && <p className="subtext">{entry.notes}</p>}
                     </div>
+                    <div className="admin-row-actions">
+                      <button type="button" onClick={() => handleEditMovieStart(entry.movie_id)}>
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={deletingMovieId === entry.movie_id}
+                        onClick={() => handleDeleteMovie(entry.movie_id)}
+                      >
+                        {deletingMovieId === entry.movie_id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
                   </li>
                 ))}
                 {adminMovies.length === 0 && <p className="status">No admin catalog entries yet.</p>}
               </ul>
+              {editingMovie && (
+                <form className="admin-add-form" onSubmit={handleUpdateMovie}>
+                  <h4>Edit movie: {editingMovie.title}</h4>
+                  <div className="admin-add-grid">
+                    <label>
+                      Title
+                      <input
+                        type="text"
+                        value={editMovieForm.title}
+                        onChange={(event) => handleEditMovieFieldChange('title', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Genre
+                      <input
+                        type="text"
+                        value={editMovieForm.genre}
+                        onChange={(event) => handleEditMovieFieldChange('genre', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Type
+                      <select
+                        value={editMovieForm.type}
+                        onChange={(event) => handleEditMovieFieldChange('type', event.target.value)}
+                      >
+                        <option value="Movie">Movie</option>
+                        <option value="Series">Series</option>
+                      </select>
+                    </label>
+                    <label>
+                      Availability
+                      <select
+                        value={editMovieForm.availability}
+                        onChange={(event) => handleEditMovieFieldChange('availability', event.target.value)}
+                      >
+                        <option value="Streaming">Streaming</option>
+                        <option value="Request">Request</option>
+                      </select>
+                    </label>
+                    <label>
+                      Year
+                      <input
+                        type="number"
+                        value={editMovieForm.year}
+                        onChange={(event) => handleEditMovieFieldChange('year', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Rating
+                      <input
+                        type="text"
+                        value={editMovieForm.rating}
+                        onChange={(event) => handleEditMovieFieldChange('rating', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Runtime
+                      <input
+                        type="text"
+                        value={editMovieForm.runtime}
+                        onChange={(event) => handleEditMovieFieldChange('runtime', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Platform
+                      <input
+                        type="text"
+                        value={editMovieForm.platform}
+                        onChange={(event) => handleEditMovieFieldChange('platform', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Genres (comma-separated)
+                      <input
+                        type="text"
+                        value={editMovieForm.genresText}
+                        onChange={(event) => handleEditMovieFieldChange('genresText', event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Cast members (comma-separated)
+                      <input
+                        type="text"
+                        value={editMovieForm.castMembersText}
+                        onChange={(event) => handleEditMovieFieldChange('castMembersText', event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Director
+                    <input
+                      type="text"
+                      value={editMovieForm.director}
+                      onChange={(event) => handleEditMovieFieldChange('director', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Trailer ID (YouTube)
+                    <input
+                      type="text"
+                      value={editMovieForm.trailerId}
+                      onChange={(event) => handleEditMovieFieldChange('trailerId', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    USB location
+                    <input
+                      type="text"
+                      value={editMovieForm.usbLocation}
+                      onChange={(event) => handleEditMovieFieldChange('usbLocation', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Poster URL
+                    <input
+                      type="url"
+                      value={editMovieForm.poster}
+                      onChange={(event) => handleEditMovieFieldChange('poster', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Gallery image URLs (comma-separated)
+                    <input
+                      type="text"
+                      value={editMovieForm.galleryText}
+                      onChange={(event) => handleEditMovieFieldChange('galleryText', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Description
+                    <textarea
+                      rows="3"
+                      value={editMovieForm.description}
+                      onChange={(event) => handleEditMovieFieldChange('description', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Detail / synopsis
+                    <textarea
+                      rows="3"
+                      value={editMovieForm.detail}
+                      onChange={(event) => handleEditMovieFieldChange('detail', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Watch options (one per line: Platform | Detail | Instruction)
+                    <textarea
+                      rows="3"
+                      value={editMovieForm.watchOptionsText}
+                      onChange={(event) => handleEditMovieFieldChange('watchOptionsText', event.target.value)}
+                      placeholder="USB | Stored in Vault 2 | Ask admin for pickup"
+                    />
+                  </label>
+                  <div className="admin-row-actions">
+                    <button type="submit" disabled={isUpdatingMovie}>
+                      {isUpdatingMovie ? 'Saving…' : 'Save changes'}
+                    </button>
+                    <button type="button" className="secondary" onClick={() => setEditingMovie(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
             <div className="admin-card">
