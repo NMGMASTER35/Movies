@@ -1232,6 +1232,10 @@ button:disabled {
   gap: 16px;
 }
 
+.admin-list.compact {
+  gap: 12px;
+}
+
 .admin-list li {
   display: flex;
   justify-content: space-between;
@@ -1271,6 +1275,32 @@ button:disabled {
   gap: 8px;
   margin-top: 8px;
   flex-wrap: wrap;
+}
+
+.admin-request-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.admin-request-column {
+  display: grid;
+  gap: 10px;
+  background: rgba(18, 22, 32, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+}
+
+.admin-request-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-catalog-list li {
+  align-items: flex-start;
 }
 
 .admin-pill {

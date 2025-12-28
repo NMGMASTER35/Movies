@@ -1063,6 +1063,56 @@ export default function Home() {
   );
   const adminUserIds = useMemo(() => new Set((adminUsers || []).map((entry) => entry.user_id)), [adminUsers]);
 
+  const requestBuckets = useMemo(() => {
+    const buckets = {
+      open: [],
+      inProgress: [],
+      approved: [],
+      rejected: [],
+    };
+
+    (requests || []).forEach((request) => {
+      const status = (request.admin?.status || request.status || 'OPEN').toUpperCase();
+      if (status === 'IN_PROGRESS' || status === 'IN PROGRESS') {
+        buckets.inProgress.push(request);
+      } else if (status === 'APPROVED') {
+        buckets.approved.push(request);
+      } else if (status === 'REJECTED') {
+        buckets.rejected.push(request);
+      } else {
+        buckets.open.push(request);
+      }
+    });
+
+    return buckets;
+  }, [requests]);
+
+  const manageableCatalog = useMemo(() => {
+    if (adminMovies.length > 0) {
+      return adminMovies.map((entry) => {
+        const movieTitle = entry.movies?.title || renderMovieTitle(entry.movie_id);
+        const availability = entry.movies?.availability || movieMap.get(entry.movie_id)?.availability || 'Request';
+        const popularity = entry.movies?.popularity ?? movieMap.get(entry.movie_id)?.popularity;
+
+        return {
+          id: entry.movie_id,
+          title: movieTitle,
+          status: entry.status || 'ACTIVE',
+          availability,
+          notes: entry.notes || (popularity !== undefined ? `Popularity: ${popularity}` : ''),
+        };
+      });
+    }
+
+    return movies.map((movie) => ({
+      id: movie.id,
+      title: movie.title,
+      status: movie.availability === 'Streaming' ? 'READY' : 'REQUEST',
+      availability: movie.availability || 'Request',
+      notes: movie.platform ? `Platform: ${movie.platform}` : movie.usbLocation ? `USB: ${movie.usbLocation}` : '',
+    }));
+  }, [adminMovies, movieMap, movies]);
+
   if (!supabase) {
     return (
       <div className="home-page">
@@ -2275,38 +2325,33 @@ export default function Home() {
                   <p>Admin oversight of each movie record.</p>
                 </div>
               </div>
-              <ul className="admin-list">
-                {adminMovies.map((entry) => (
-                  <li key={entry.id}>
+              <ul className="admin-list admin-catalog-list">
+                {manageableCatalog.map((entry) => (
+                  <li key={`catalog-${entry.id}`}>
                     <div>
-                      <strong>{entry.movies?.title || renderMovieTitle(entry.movie_id)}</strong>
+                      <strong>{entry.title}</strong>
                       <div className="admin-tags">
                         <span className="admin-pill">{entry.status}</span>
-                        {entry.movies?.availability && (
-                          <span className="admin-pill muted">{entry.movies.availability}</span>
-                        )}
-                        {entry.movies?.popularity !== undefined && (
-                          <span className="admin-pill muted">Popularity: {entry.movies.popularity}</span>
-                        )}
+                        {entry.availability && <span className="admin-pill muted">{entry.availability}</span>}
                       </div>
                       {entry.notes && <p className="subtext">{entry.notes}</p>}
                     </div>
                     <div className="admin-row-actions">
-                      <button type="button" onClick={() => handleEditMovieStart(entry.movie_id)}>
+                      <button type="button" onClick={() => handleEditMovieStart(entry.id)}>
                         Edit
                       </button>
                       <button
                         type="button"
                         className="secondary"
-                        disabled={deletingMovieId === entry.movie_id}
-                        onClick={() => handleDeleteMovie(entry.movie_id)}
+                        disabled={deletingMovieId === entry.id}
+                        onClick={() => handleDeleteMovie(entry.id)}
                       >
-                        {deletingMovieId === entry.movie_id ? 'Deleting…' : 'Delete'}
+                        {deletingMovieId === entry.id ? 'Deleting…' : 'Delete'}
                       </button>
                     </div>
                   </li>
                 ))}
-                {adminMovies.length === 0 && <p className="status">No admin catalog entries yet.</p>}
+                {manageableCatalog.length === 0 && <p className="status">No catalog entries found.</p>}
               </ul>
               {editingMovie && (
                 <form className="admin-add-form" onSubmit={handleUpdateMovie}>
@@ -2481,39 +2526,72 @@ export default function Home() {
                   <p>Approve or decline member submissions.</p>
                 </div>
               </div>
-              <ul className="admin-list">
-                {requests.map((request) => (
-                  <li key={request.id}>
-                    <div>
-                      <strong>{renderMovieTitle(request.movie_id)}</strong>
-                      <span>{request.requester_email}</span>
-                      <div className="admin-tags">
-                        <span className="admin-pill">{request.status}</span>
-                        <span className="admin-pill muted">{request.delivery_method}</span>
-                        {request.admin?.status && <span className="admin-pill">Admin: {request.admin.status}</span>}
-                        {request.admin?.assigned_to && (
-                          <span className="admin-pill muted">Owner: {renderUserName(request.admin.assigned_to)}</span>
-                        )}
+              <div className="admin-request-board">
+                {['open', 'inProgress', 'approved', 'rejected'].map((bucketKey) => {
+                  const titles = {
+                    open: 'Open',
+                    inProgress: 'In progress',
+                    approved: 'Approved',
+                    rejected: 'Rejected',
+                  };
+                  const items = requestBuckets[bucketKey] || [];
+
+                  return (
+                    <div key={bucketKey} className="admin-request-column">
+                      <div className="admin-request-column-header">
+                        <h4>{titles[bucketKey]}</h4>
+                        <span className="badge muted">{items.length}</span>
                       </div>
-                      {request.message && <p className="subtext">{request.message}</p>}
-                      {request.admin?.notes && <p className="subtext">{request.admin.notes}</p>}
+                      <ul className="admin-list compact">
+                        {items.map((request) => (
+                          <li key={`${bucketKey}-${request.id}`}>
+                            <div>
+                              <strong>{renderMovieTitle(request.movie_id)}</strong>
+                              <span>{request.requester_email}</span>
+                              <div className="admin-tags">
+                                <span className="admin-pill">{request.status}</span>
+                                <span className="admin-pill muted">{request.delivery_method}</span>
+                                {request.admin?.status && <span className="admin-pill">Admin: {request.admin.status}</span>}
+                                {request.admin?.assigned_to && (
+                                  <span className="admin-pill muted">Owner: {renderUserName(request.admin.assigned_to)}</span>
+                                )}
+                              </div>
+                              {request.message && <p className="subtext">{request.message}</p>}
+                              {request.admin?.notes && <p className="subtext">{request.admin.notes}</p>}
+                            </div>
+                            <div className="admin-row-actions">
+                              {bucketKey !== 'approved' && (
+                                <button type="button" onClick={() => handleRequestStatusUpdate(request.id, 'APPROVED')}>
+                                  Approve
+                                </button>
+                              )}
+                              {bucketKey !== 'rejected' && (
+                                <button
+                                  type="button"
+                                  className="secondary"
+                                  onClick={() => handleRequestStatusUpdate(request.id, 'REJECTED')}
+                                >
+                                  Reject
+                                </button>
+                              )}
+                              {bucketKey === 'open' && (
+                                <button
+                                  type="button"
+                                  className="secondary"
+                                  onClick={() => handleRequestStatusUpdate(request.id, 'IN_PROGRESS')}
+                                >
+                                  Start
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                        {items.length === 0 && <p className="status">Nothing here yet.</p>}
+                      </ul>
                     </div>
-                    <div className="admin-row-actions">
-                      <button type="button" onClick={() => handleRequestStatusUpdate(request.id, 'APPROVED')}>
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => handleRequestStatusUpdate(request.id, 'REJECTED')}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </li>
-                ))}
-                {requests.length === 0 && <p className="status">No incoming requests.</p>}
-              </ul>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="admin-card">
