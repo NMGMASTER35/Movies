@@ -6,6 +6,14 @@ import {
   saveSupabaseConfig,
   supabase,
 } from '../services/supabaseClient';
+import {
+  authenticateLocalUser,
+  getSessionUser,
+  loadLocalState,
+  persistSessionUser,
+  registerLocalUser,
+  saveLocalState,
+} from '../services/localDatabase';
 
 export default function Home() {
   const DEMO_USER = {
@@ -31,10 +39,25 @@ export default function Home() {
   const router = useRouter();
 
   const enableDemoMode = () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('demo-user', JSON.stringify(DEMO_USER));
+    if (typeof window === 'undefined') {
+      return;
     }
-    setStatusMessage('Demo mode enabled. Loading the library...');
+
+    const state = loadLocalState();
+    const guestUser = {
+      id: DEMO_USER.id,
+      email: DEMO_USER.email,
+      password: '',
+      role: 'member',
+      user_metadata: DEMO_USER.user_metadata,
+    };
+
+    if (!state.users.some((user) => user.id === DEMO_USER.id)) {
+      saveLocalState({ ...state, users: [...state.users, guestUser] });
+    }
+
+    persistSessionUser(DEMO_USER.id);
+    setStatusMessage('Guest mode enabled. Loading the library...');
     router.push('/home');
   };
 
@@ -57,7 +80,7 @@ export default function Home() {
     }
 
     setSupabaseClient(client);
-    setConfigStatus('Supabase connected! You can now sign in with your account.');
+    setConfigStatus('Supabase connected! You can also use local accounts at any time.');
   };
 
   const handleConfigClear = () => {
@@ -65,7 +88,7 @@ export default function Home() {
     setSupabaseClient(null);
     setSupabaseUrl('');
     setSupabaseAnonKey('');
-    setConfigStatus('Supabase settings cleared. Running in demo mode.');
+    setConfigStatus('Supabase settings cleared. Running in local-only mode.');
   };
 
   const handleSubmit = async (e) => {
@@ -78,47 +101,57 @@ export default function Home() {
       return;
     }
 
-    if (!supabaseClient) {
-      enableDemoMode();
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
-      const response = isLogin
-        ? await supabaseClient.auth.signInWithPassword({ email, password })
-        : await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: fullName,
-                invite_code: inviteCode || null,
+      if (supabaseClient) {
+        const response = isLogin
+          ? await supabaseClient.auth.signInWithPassword({ email, password })
+          : await supabaseClient.auth.signUp({
+              email,
+              password,
+              options: {
+                data: {
+                  full_name: fullName,
+                  invite_code: inviteCode || null,
+                },
               },
-            },
-          });
-      const { data, error } = response;
-      const authError = error?.message;
-      const authUser = data?.user;
+            });
+        const { data, error } = response;
+        const authError = error?.message;
+        const authUser = data?.user;
 
-      if (authError) {
-        setError(authError || 'Something went wrong. Please try again.');
+        if (authError) {
+          setError(authError || 'Something went wrong. Please try again.');
+          return;
+        }
+
+        if (!authUser) {
+          setError('Unable to validate your account. Please try again.');
+          return;
+        }
+
+        if (isLogin) {
+          setStatusMessage('Welcome back!');
+        } else if (inviteCode) {
+          setStatusMessage('Invite accepted! Check your email to confirm activation.');
+        } else {
+          setStatusMessage('Check your email to confirm your account.');
+        }
+        router.push('/home');
         return;
       }
 
-      if (!authUser) {
+      const localUser = isLogin
+        ? authenticateLocalUser({ email, password })
+        : registerLocalUser({ email, password, fullName, bio: inviteCode ? `Invite: ${inviteCode}` : '' });
+
+      if (!localUser) {
         setError('Unable to validate your account. Please try again.');
         return;
       }
 
-      if (isLogin) {
-        setStatusMessage('Welcome back!');
-      } else if (inviteCode) {
-        setStatusMessage('Invite accepted! Check your email to confirm activation.');
-      } else {
-        setStatusMessage('Check your email to confirm your account.');
-      }
+      setStatusMessage(isLogin ? 'Welcome back!' : 'Account created! Start exploring your library.');
       router.push('/home');
     } catch (submitError) {
       setError(submitError.message || 'Unable to reach the server.');
@@ -138,6 +171,14 @@ export default function Home() {
     }
   }, []);
 
+  useEffect(() => {
+    const activeUser = getSessionUser();
+    if (activeUser) {
+      setStatusMessage('Resuming your session...');
+      router.push('/home');
+    }
+  }, []);
+
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -149,8 +190,11 @@ export default function Home() {
 
         {!supabaseClient && (
           <div className="demo-banner" role="status">
-            <strong>Demo mode</strong>
-            <p>No Supabase credentials detected. Continue in demo mode to try the full experience.</p>
+            <strong>Local mode</strong>
+            <p>
+              No Supabase credentials detected. You can use fully local accounts or connect Supabase to sync
+              data across devices.
+            </p>
           </div>
         )}
 
@@ -192,10 +236,10 @@ export default function Home() {
               />
             </label>
             <button type="submit" className="secondary">
-              Save Supabase settings
+              Connect Supabase (optional)
             </button>
             <button type="button" className="secondary" onClick={handleConfigClear}>
-              Reset to demo mode
+              Reset to local-only mode
             </button>
             {configStatus && <p className="status">{configStatus}</p>}
           </form>
@@ -250,7 +294,7 @@ export default function Home() {
         <div className="demo-actions">
           <p className="subtext">Just exploring? Skip account creation.</p>
           <button type="button" className="secondary" onClick={enableDemoMode}>
-            Continue in demo mode
+            Continue as guest
           </button>
         </div>
 

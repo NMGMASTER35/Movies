@@ -2,6 +2,15 @@ import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase, isAdminUser } from '../services/supabaseClient';
 import {
+  addLocalMovie,
+  addLocalRequest,
+  clearSessionUser,
+  getSessionUser,
+  loadLocalState,
+  saveLocalState,
+  updateLocalProfile,
+} from '../services/localDatabase';
+import {
   ADMIN_METRICS,
   ADMIN_MOVIES,
   ADMIN_REQUESTS,
@@ -109,6 +118,19 @@ export default function Home() {
   const [socialReviews, setSocialReviews] = useState(SOCIAL_REVIEWS);
   const [socialFollowing, setSocialFollowing] = useState(SOCIAL_FOLLOWING);
   const [shareableLists, setShareableLists] = useState(SHAREABLE_LISTS);
+  const [isAddingMovie, setIsAddingMovie] = useState(false);
+  const [newMovieForm, setNewMovieForm] = useState({
+    title: '',
+    genre: 'Action',
+    type: 'Movie',
+    availability: 'Streaming',
+    year: new Date().getFullYear(),
+    runtime: '',
+    rating: 'PG',
+    description: '',
+    director: '',
+    poster: '',
+  });
   const isAdmin = useMemo(() => isAdminUser(user), [user]);
   const isAdminPreview = useMemo(() => router.query.admin === 'preview', [router.query.admin]);
   const canViewAdmin = isAdmin || isAdminPreview;
@@ -126,30 +148,38 @@ export default function Home() {
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
 
   useEffect(() => {
+    const state = loadLocalState();
+
+    setMovies((state.movies || MOVIES).map(normalizeMovie));
+    setAdminMetrics(state.adminMetrics || ADMIN_METRICS);
+    setAdminMovies(state.adminMovies || ADMIN_MOVIES);
+    setAdminRequests(state.adminRequests || ADMIN_REQUESTS);
+    setAdminUsers(state.adminUsers || ADMIN_USERS);
+    setSocialReviews(state.socialReviews || SOCIAL_REVIEWS);
+    setSocialFollowing(state.socialFollowing || SOCIAL_FOLLOWING);
+    setShareableLists(state.shareableLists || SHAREABLE_LISTS);
+  }, []);
+
+  useEffect(() => {
     if (supabase) {
       return;
     }
 
-    const storedDemo = typeof window !== 'undefined' ? window.localStorage.getItem('demo-user') : null;
-    if (storedDemo) {
-      try {
-        const parsed = JSON.parse(storedDemo);
-        setUser(parsed);
-        return;
-      } catch (_error) {
-        // Ignore parsing issues; fall back to default demo user.
-      }
+    const sessionUser = getSessionUser();
+    if (sessionUser) {
+      setUser(sessionUser);
+      setProfileName(sessionUser.user_metadata?.full_name || '');
+      setProfileAvatar(sessionUser.user_metadata?.avatar_url || '');
+      setProfileBio(sessionUser.user_metadata?.bio || '');
+      return;
     }
 
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('demo-user', JSON.stringify(DEMO_USER));
-    }
     setUser(DEMO_USER);
   }, [DEMO_USER, supabase]);
 
   useEffect(() => {
     if (!supabase) {
-      setAuthStatus('Running in demo mode. Connect Supabase to enable accounts.');
+      setAuthStatus('Using local account storage. Connect Supabase to sync across devices.');
       return;
     }
 
@@ -416,6 +446,33 @@ export default function Home() {
     };
   }, [supabase, user]);
 
+  useEffect(() => {
+    if (supabase) {
+      return;
+    }
+
+    saveLocalState({
+      movies,
+      adminMetrics,
+      adminMovies,
+      adminRequests,
+      adminUsers,
+      socialReviews,
+      socialFollowing,
+      shareableLists,
+    });
+  }, [
+    adminMetrics,
+    adminMovies,
+    adminRequests,
+    adminUsers,
+    movies,
+    shareableLists,
+    socialFollowing,
+    socialReviews,
+    supabase,
+  ]);
+
   const featured = movies.find((movie) => movie.featured) || movies[0] || {};
   const availableYears = useMemo(() => {
     const years = [...new Set(movies.map((movie) => movie.year).filter(Boolean))];
@@ -627,7 +684,19 @@ export default function Home() {
     }
 
     if (!supabase) {
-      setProfileStatus('Missing Supabase configuration. Please check your environment settings.');
+      const updated = updateLocalProfile(user?.id, {
+        full_name: profileName,
+        avatar_url: profileAvatar,
+        bio: profileBio,
+      });
+
+      if (!updated) {
+        setProfileStatus('Unable to update your local profile. Please try again.');
+        return;
+      }
+
+      setUser(updated);
+      setProfileStatus('Profile updated successfully (local mode).');
       return;
     }
 
@@ -703,17 +772,17 @@ export default function Home() {
     }
 
     if (!supabase) {
-      setAdminRequests((prev) => [
-        {
-          id: `local-${Date.now()}`,
-          title: selectedMovie.title,
-          requestedBy: requesterEmail,
-          timeframe: 'Just now',
-          notes: requestMessage || 'Pending admin follow-up',
-        },
-        ...prev,
-      ]);
-      setRequestStatus('Request saved locally in demo mode.');
+      const newRequest = addLocalRequest({
+        movieId: selectedMovie.id,
+        title: selectedMovie.title,
+        type: selectedMovie.type,
+        requesterEmail,
+        userId: user?.id || requesterEmail,
+        message: requestMessage,
+        deliveryMethod,
+      });
+      setAdminRequests((prev) => [newRequest, ...prev]);
+      setRequestStatus('Request saved locally. Admins can review it from the dashboard.');
       setRequestMessage('');
       return;
     }
@@ -743,11 +812,58 @@ export default function Home() {
     }
   };
 
+  const handleNewMovieSubmit = (event) => {
+    event.preventDefault();
+
+    if (!newMovieForm.title || !newMovieForm.genre || !newMovieForm.type) {
+      setAuthStatus('Please provide a title, genre, and type for the new entry.');
+      return;
+    }
+
+    const createdMovie = addLocalMovie({
+      ...newMovieForm,
+      addedBy: profileName || user?.email || 'Local admin',
+    });
+    const normalizedMovie = normalizeMovie(createdMovie);
+
+    setMovies((prev) => [normalizedMovie, ...prev]);
+    setAdminMovies((prev) => [
+      {
+        id: `admin-${createdMovie.id}`,
+        title: createdMovie.title,
+        status: 'New',
+        updated: 'Just now',
+        owner: profileName || user?.email || 'Local admin',
+      },
+      ...prev,
+    ]);
+    setAdminMetrics((prev) =>
+      prev.map((metric) =>
+        metric.label === 'Catalog titles'
+          ? { ...metric, value: String((movies?.length || 0) + 1), detail: 'Includes locally added titles' }
+          : metric,
+      ),
+    );
+    setIsAddingMovie(false);
+    setSelectedMovie(normalizedMovie);
+    setActiveTab('browse');
+    setNewMovieForm({
+      title: '',
+      genre: 'Action',
+      type: 'Movie',
+      availability: 'Streaming',
+      year: new Date().getFullYear(),
+      runtime: '',
+      rating: 'PG',
+      description: '',
+      director: '',
+      poster: '',
+    });
+  };
+
   const handleSignOut = async () => {
     if (!supabase) {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('demo-user');
-      }
+      clearSessionUser();
       setUser(null);
       router.push('/');
       return;
@@ -1299,9 +1415,119 @@ export default function Home() {
               <button type="button" className="secondary">
                 Export report
               </button>
-              <button type="button">Add new movie</button>
+              <button type="button" onClick={() => setIsAddingMovie((open) => !open)}>
+                {isAddingMovie ? 'Close form' : 'Add new movie'}
+              </button>
             </div>
           </header>
+
+          {isAddingMovie && (
+            <form className="admin-add-form" onSubmit={handleNewMovieSubmit}>
+              <div className="admin-add-grid">
+                <label>
+                  Title
+                  <input
+                    type="text"
+                    value={newMovieForm.title}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, title: event.target.value }))}
+                    placeholder="New release title"
+                  />
+                </label>
+                <label>
+                  Genre
+                  <input
+                    type="text"
+                    value={newMovieForm.genre}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, genre: event.target.value }))}
+                    placeholder="Drama, Action..."
+                  />
+                </label>
+                <label>
+                  Type
+                  <select
+                    value={newMovieForm.type}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, type: event.target.value }))}
+                  >
+                    <option value="Movie">Movie</option>
+                    <option value="Series">Series</option>
+                  </select>
+                </label>
+                <label>
+                  Year
+                  <input
+                    type="number"
+                    value={newMovieForm.year}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, year: event.target.value }))}
+                    min="1950"
+                    max="2100"
+                  />
+                </label>
+                <label>
+                  Runtime / Episodes
+                  <input
+                    type="text"
+                    value={newMovieForm.runtime}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, runtime: event.target.value }))}
+                    placeholder="2h 10m"
+                  />
+                </label>
+                <label>
+                  Rating
+                  <input
+                    type="text"
+                    value={newMovieForm.rating}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, rating: event.target.value }))}
+                    placeholder="PG-13"
+                  />
+                </label>
+                <label>
+                  Availability
+                  <select
+                    value={newMovieForm.availability}
+                    onChange={(event) =>
+                      setNewMovieForm((prev) => ({ ...prev, availability: event.target.value }))
+                    }
+                  >
+                    <option value="Streaming">Streaming</option>
+                    <option value="Request">Request</option>
+                  </select>
+                </label>
+                <label>
+                  Director
+                  <input
+                    type="text"
+                    value={newMovieForm.director}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, director: event.target.value }))}
+                    placeholder="Director name"
+                  />
+                </label>
+              </div>
+              <label>
+                Poster URL
+                <input
+                  type="url"
+                  value={newMovieForm.poster}
+                  onChange={(event) => setNewMovieForm((prev) => ({ ...prev, poster: event.target.value }))}
+                  placeholder="https://example.com/poster.jpg"
+                />
+              </label>
+              <label>
+                Description
+                <textarea
+                  rows="3"
+                  value={newMovieForm.description}
+                  onChange={(event) => setNewMovieForm((prev) => ({ ...prev, description: event.target.value }))}
+                  placeholder="Short synopsis for the catalog."
+                />
+              </label>
+              <div className="admin-add-actions">
+                <button type="button" className="secondary" onClick={() => setIsAddingMovie(false)}>
+                  Cancel
+                </button>
+                <button type="submit">Save to catalog</button>
+              </div>
+            </form>
+          )}
 
           <div className="admin-metrics">
             {adminMetrics.map((metric) => (

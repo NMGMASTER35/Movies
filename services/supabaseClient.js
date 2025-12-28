@@ -69,4 +69,4 @@ export const getSupabaseConfig = () => getStoredConfig();
 
 export const ADMIN_USER_IDS = new Set(['ae8d08c2-43e1-4fb1-b75d-0d9bd989f632']);
 
-export const isAdminUser = (user) => Boolean(user?.id && ADMIN_USER_IDS.has(user.id));
+export const isAdminUser = (user) => Boolean(user?.role === 'admin' || (user?.id && ADMIN_USER_IDS.has(user.id)));
