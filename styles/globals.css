@@ -720,6 +720,14 @@ button:hover {
   min-width: 140px;
 }
 
+.admin-form-inline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 .admin-add-form {
   background: rgba(12, 15, 22, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.08);

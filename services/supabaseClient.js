@@ -5,6 +5,12 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env
 
 export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-export const ADMIN_USER_IDS = new Set(['ae8d08c2-43e1-4fb1-b75d-0d9bd989f632']);
+const adminIds = (process.env.NEXT_PUBLIC_ADMIN_IDS || process.env.ADMIN_IDS || '')
+  .split(',')
+  .map((id) => id.trim())
+  .filter(Boolean);
 
-export const isAdminUser = (user) => Boolean(user?.role === 'admin' || (user?.id && ADMIN_USER_IDS.has(user.id)));
+export const ADMIN_USER_IDS = new Set(['ae8d08c2-43e1-4fb1-b75d-0d9bd989f632', ...adminIds]);
+
+export const isAdminUser = (user) =>
+  Boolean(user?.role === 'admin' || (user?.user_metadata?.role && user.user_metadata.role === 'admin') || (user?.id && ADMIN_USER_IDS.has(user.id)));
