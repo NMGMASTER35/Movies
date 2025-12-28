@@ -1,169 +1,151 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../services/supabaseClient';
-import {
-  authenticateLocalUser,
-  getSessionUser,
-  loadLocalState,
-  registerLocalUser,
-  saveLocalState,
-  setSessionUser,
-} from '../services/localDatabase';
 
-export default function Home() {
-  const DEMO_USER = {
-    id: 'demo-user',
-    email: 'demo@movielibrary.app',
-    user_metadata: {
-      full_name: 'Demo Member',
-      bio: 'Exploring the catalog in demo mode.',
-    },
-  };
+export default function Index() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  const [error, setError] = useState('');
-  const [statusMessage, setStatusMessage] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
 
-  const enableDemoMode = () => {
-    if (typeof window === 'undefined') {
+  useEffect(() => {
+    if (!supabase) {
+      setError('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
       return;
     }
 
-    const state = loadLocalState();
-    const guestUser = {
-      id: DEMO_USER.id,
-      email: DEMO_USER.email,
-      password: '',
-      role: 'member',
-      user_metadata: DEMO_USER.user_metadata,
+    const hydrate = async () => {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) {
+        setError(sessionError.message);
+        return;
+      }
+
+      if (data?.session?.user) {
+        router.replace('/home');
+      }
     };
 
-    if (!state.users.some((user) => user.id === DEMO_USER.id)) {
-      saveLocalState({ ...state, users: [...state.users, guestUser] });
-    }
+    hydrate();
+  }, [router]);
 
-    setSessionUser(DEMO_USER.id);
-    setStatusMessage('Guest mode enabled. Loading the library...');
-    router.push('/home');
+  const validateInvite = async (code) => {
+    if (!code) {
+      throw new Error('Invite code is required to activate an account.');
+    }
+    const { data, error: inviteError } = await supabase
+      .from('invites')
+      .select('id, email, role, revoked, used_at')
+      .eq('code', code)
+      .maybeSingle();
+
+    if (inviteError) {
+      throw new Error(inviteError.message || 'Unable to verify invite.');
+    }
+    if (!data) {
+      throw new Error('Invite not found.');
+    }
+    if (data.revoked) {
+      throw new Error('This invite has been revoked.');
+    }
+    if (data.used_at) {
+      throw new Error('This invite has already been used.');
+    }
+    return data;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setStatusMessage('');
 
-    if (!email || !password || (!isLogin && !fullName)) {
-      setError(isLogin ? 'Email and password are required.' : 'Name, email, and password are required.');
+    if (!supabase) {
+      setError('Supabase is not configured.');
+      return;
+    }
+    if (!email || !password) {
+      setError('Email and password are required.');
+      return;
+    }
+    if (!isLogin && (!fullName || !inviteCode)) {
+      setError('Name and invite code are required to activate your account.');
       return;
     }
 
     setIsSubmitting(true);
-
     try {
-      if (supabase) {
-        const response = isLogin
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({
-              email,
-              password,
-              options: {
-                data: {
-                  full_name: fullName,
-                  invite_code: inviteCode || null,
-                },
-              },
-            });
-        const { data, error } = response;
-        const authError = error?.message;
-        const authUser = data?.user;
-
-        if (authError) {
-          setError(authError || 'Something went wrong. Please try again.');
-          return;
+      if (isLogin) {
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) {
+          throw signInError;
         }
-
-        if (!authUser?.id) {
-          setError('Unable to validate your account. Please try again.');
-          return;
+        if (!data?.user) {
+          throw new Error('Unable to sign in.');
         }
-
-        setSessionUser(authUser);
-
-        if (isLogin) {
-          setStatusMessage('Welcome back!');
-        } else if (inviteCode) {
-          setStatusMessage('Invite accepted! Check your email to confirm activation.');
-        } else {
-          setStatusMessage('Check your email to confirm your account.');
-        }
+        setStatusMessage('Welcome back to N&M Movies.');
         router.push('/home');
         return;
       }
 
-      const localUser = isLogin
-        ? authenticateLocalUser({ email, password })
-        : registerLocalUser({ email, password, fullName, bio: inviteCode ? `Invite: ${inviteCode}` : '' });
-
-      if (!localUser) {
-        setError('Unable to validate your account. Please try again.');
-        return;
+      const invite = await validateInvite(inviteCode.trim());
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            role: invite.role || 'member',
+            invite_code: inviteCode.trim(),
+          },
+        },
+      });
+      if (signUpError) {
+        throw signUpError;
+      }
+      if (!data?.user) {
+        throw new Error('Unable to create account.');
       }
 
-      setStatusMessage(isLogin ? 'Welcome back!' : 'Account created! Start exploring your library.');
-      router.push('/home');
+      await Promise.all([
+        supabase.from('profiles').upsert({
+          id: data.user.id,
+          email,
+          full_name: fullName,
+          role: invite.role || 'member',
+          invite_code: inviteCode.trim(),
+        }),
+        supabase.from('invites').update({ used_at: new Date().toISOString(), used_by: data.user.id }).eq('id', invite.id),
+      ]);
+
+      setStatusMessage('Account created. Check your email to confirm and then sign in.');
+      setIsLogin(true);
     } catch (submitError) {
-      setError(submitError.message || 'Unable to reach the server.');
+      setError(submitError.message || 'Unable to process your request.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  useEffect(() => {
-    const activeUser = getSessionUser();
-    if (activeUser) {
-      setStatusMessage('Resuming your session...');
-      router.push('/home');
-    }
-  }, []);
-
   return (
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-header">
-          <p className="eyebrow">Private Cinema</p>
-          <h1>Movie Library</h1>
-          <p className="subtext">Log in or activate your invite to start browsing.</p>
+          <p className="eyebrow">Invitation-only</p>
+          <h1>N&M Movies</h1>
+          <p className="subtext">Private catalog access for invited members only.</p>
         </div>
 
-        {!supabase && (
-          <div className="demo-banner" role="status">
-            <strong>Local mode</strong>
-            <p>
-              No Supabase credentials detected. You can use fully local accounts or configure
-              NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to sync data across devices.
-            </p>
-          </div>
-        )}
-
         <div className="auth-toggle">
-          <button
-            type="button"
-            className={isLogin ? 'active' : ''}
-            onClick={() => setIsLogin(true)}
-          >
+          <button type="button" className={isLogin ? 'active' : ''} onClick={() => setIsLogin(true)}>
             Login
           </button>
-          <button
-            type="button"
-            className={!isLogin ? 'active' : ''}
-            onClick={() => setIsLogin(false)}
-          >
-            Activate Account
+          <button type="button" className={!isLogin ? 'active' : ''} onClick={() => setIsLogin(false)}>
+            Activate Invite
           </button>
         </div>
 
@@ -173,9 +155,9 @@ export default function Home() {
               Full name
               <input
                 type="text"
-                placeholder="Alex Morgan"
+                placeholder="Nia Thompson"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(event) => setFullName(event.target.value)}
               />
             </label>
           )}
@@ -185,40 +167,33 @@ export default function Home() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
             />
           </label>
           <label>
             Password
             <input
               type="password"
-              placeholder="Your password"
+              placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
             />
           </label>
           {!isLogin && (
             <label>
-              Invite code (optional)
+              Invite code
               <input
                 type="text"
-                placeholder="MOVIES-2024"
+                placeholder="NM-XXXXXX"
                 value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
+                onChange={(event) => setInviteCode(event.target.value)}
               />
             </label>
           )}
           <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Processing...' : isLogin ? 'Login' : 'Activate Account'}
+            {isSubmitting ? 'Processing…' : isLogin ? 'Login' : 'Activate'}
           </button>
         </form>
-
-        <div className="demo-actions">
-          <p className="subtext">Just exploring? Skip account creation.</p>
-          <button type="button" className="secondary" onClick={enableDemoMode}>
-            Continue as guest
-          </button>
-        </div>
 
         {error && <p className="error">{error}</p>}
         {statusMessage && <p className="status">{statusMessage}</p>}
