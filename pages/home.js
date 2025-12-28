@@ -7,6 +7,7 @@ import {
   clearSessionUser,
   getSessionUser,
   loadLocalState,
+  persistSessionUser,
   saveLocalState,
   updateLocalProfile,
 } from '../services/localDatabase';
@@ -144,7 +145,7 @@ export default function Home() {
     }
 
     return `movie-profile-${user?.id || user?.email}`;
-  }, [supabase, user]);
+  }, [user]);
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
 
   useEffect(() => {
@@ -199,6 +200,11 @@ export default function Home() {
 
       const activeUser = data?.session?.user ?? null;
       setUser(activeUser);
+      if (activeUser) {
+        persistSessionUser(activeUser);
+      } else {
+        clearSessionUser();
+      }
 
       if (!activeUser && !isAdminPreview) {
         router.push('/');
@@ -211,6 +217,12 @@ export default function Home() {
       const activeUser = session?.user ?? null;
       setUser(activeUser);
 
+      if (activeUser) {
+        persistSessionUser(activeUser);
+      } else {
+        clearSessionUser();
+      }
+
       if (!activeUser && !isAdminPreview) {
         router.push('/');
       }
@@ -220,7 +232,7 @@ export default function Home() {
       isMounted = false;
       data?.subscription?.unsubscribe();
     };
-  }, [isAdminPreview, router]);
+  }, [isAdminPreview, router, supabase]);
 
   useEffect(() => {
     if (user?.email) {
@@ -879,6 +891,8 @@ export default function Home() {
         return;
       }
 
+      clearSessionUser();
+      setUser(null);
       setIsUserMenuOpen(false);
       router.push('/');
     } catch (signOutError) {
