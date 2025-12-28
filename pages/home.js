@@ -7,7 +7,7 @@ import {
   clearSessionUser,
   getSessionUser,
   loadLocalState,
-  persistSessionUser,
+  setSessionUser,
   saveLocalState,
   updateLocalProfile,
 } from '../services/localDatabase';
@@ -201,7 +201,7 @@ export default function Home() {
       const activeUser = data?.session?.user ?? null;
       setUser(activeUser);
       if (activeUser) {
-        persistSessionUser(activeUser);
+        setSessionUser(activeUser);
       } else {
         clearSessionUser();
       }
@@ -218,7 +218,7 @@ export default function Home() {
       setUser(activeUser);
 
       if (activeUser) {
-        persistSessionUser(activeUser);
+        setSessionUser(activeUser);
       } else {
         clearSessionUser();
       }

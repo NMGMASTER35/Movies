@@ -136,7 +136,7 @@ export const getSessionUser = () => {
   }
 };
 
-export const persistSessionUser = (user) => {
+export const setSessionUser = (user) => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -154,6 +154,8 @@ export const persistSessionUser = (user) => {
 
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
 };
+
+export const persistSessionUser = setSessionUser;
 
 export const clearSessionUser = () => {
   if (typeof window === 'undefined') {
@@ -207,7 +209,7 @@ export const registerLocalUser = ({ email, password, fullName, bio }) => {
   };
 
   saveLocalState(updatedState);
-  persistSessionUser(newUser.id);
+  setSessionUser(newUser.id);
 
   return newUser;
 };
@@ -225,7 +227,7 @@ export const authenticateLocalUser = ({ email, password }) => {
     throw new Error('Invalid email or password.');
   }
 
-  persistSessionUser(user.id);
+  setSessionUser(user.id);
   return user;
 };
 
@@ -269,7 +271,7 @@ export const updateLocalProfile = (userId, updates) => {
   };
 
   saveLocalState(updatedState);
-  persistSessionUser(updatedUser.id);
+  setSessionUser(updatedUser.id);
 
   return updatedUser;
 };
