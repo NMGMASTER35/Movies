@@ -6,6 +6,7 @@ const normalizeMovie = (movie) => ({
   id: movie.id,
   title: movie.title,
   description: movie.description || '',
+  detail: movie.detail || '',
   genre: movie.genre || 'Unknown',
   genres: Array.isArray(movie.genres) ? movie.genres : movie.genre ? [movie.genre] : [],
   type: movie.type || 'Movie',
@@ -14,11 +15,17 @@ const normalizeMovie = (movie) => ({
   runtime: movie.runtime || '',
   availability: movie.availability || 'Request',
   usbLocation: movie.usb_location || '',
+  platform: movie.platform || '',
   trailerId: movie.trailer_id || '',
-  watchOptions: Array.isArray(movie.watch_options) ? movie.watch_options : [],
+  watchOptions: Array.isArray(movie.watch_options)
+    ? movie.watch_options
+    : movie.watch_options && typeof movie.watch_options === 'object'
+      ? [movie.watch_options]
+      : [],
   poster: movie.poster || 'https://via.placeholder.com/300x450.png?text=N%26M+Movies',
   director: movie.director || '',
-  cast: Array.isArray(movie.cast) ? movie.cast : [],
+  castMembers: Array.isArray(movie.cast_members) ? movie.cast_members : [],
+  gallery: Array.isArray(movie.gallery) ? movie.gallery : [],
   score: Number(movie.score) || 0,
   popularity: Number(movie.popularity) || 0,
   featured: Boolean(movie.featured),
@@ -39,11 +46,29 @@ const sortOptions = [
   { label: 'Highest rated', value: 'rating' },
 ];
 
+const parseList = (value) =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const parseWatchOptions = (value) =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [platform, detail, instruction] = line.split('|').map((part) => part.trim());
+      return { platform, detail: detail || '', instruction: instruction || '' };
+    })
+    .filter((option) => option.platform);
+
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('browse');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [movies, setMovies] = useState([]);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,6 +83,10 @@ export default function Home() {
   const [requests, setRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
   const [inviteList, setInviteList] = useState([]);
+  const [adminRequests, setAdminRequests] = useState([]);
+  const [adminMovies, setAdminMovies] = useState([]);
+  const [adminMetrics, setAdminMetrics] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [users, setUsers] = useState([]);
   const [loadingMessage, setLoadingMessage] = useState('Loading your account…');
   const [statusMessage, setStatusMessage] = useState('');
@@ -72,10 +101,16 @@ export default function Home() {
     runtime: '',
     rating: 'PG-13',
     description: '',
+    detail: '',
     director: '',
     trailerId: '',
     usbLocation: '',
     poster: '',
+    platform: '',
+    genresText: '',
+    castMembersText: '',
+    galleryText: '',
+    watchOptionsText: '',
   });
   const [inviteForm, setInviteForm] = useState({ email: '', role: 'member' });
   const [requestMessage, setRequestMessage] = useState('');
@@ -83,8 +118,20 @@ export default function Home() {
   const [requestStatus, setRequestStatus] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const isAdmin = useMemo(() => isAdminUser(user || profile), [user, profile]);
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
+  const userMap = useMemo(() => new Map(users.map((member) => [member.id, member])), [users]);
+
+  const renderUserName = (userId) => {
+    const member = userMap.get(userId);
+    if (member) {
+      return member.full_name || member.email || userId || 'Unassigned';
+    }
+    const adminFallback = adminUsers.find((entry) => entry.user_id === userId);
+    if (adminFallback) {
+      return adminFallback.user_id;
+    }
+    return userId || 'Unassigned';
+  };
 
   useEffect(() => {
     if (user && !profile) {
@@ -153,9 +200,7 @@ export default function Home() {
           favoritesResult,
           ratingsResult,
           myRequestsResult,
-          adminRequestsResult,
-          inviteResult,
-          usersResult,
+          adminUserResult,
         ] = await Promise.all([
           supabase.from('movies').select('*').order('popularity', { ascending: false }),
           supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
@@ -167,14 +212,7 @@ export default function Home() {
             .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false }),
-          supabase
-            .from('requests')
-            .select(
-              'id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id'
-            )
-            .order('created_at', { ascending: false }),
-          supabase.from('invites').select('*').order('created_at', { ascending: false }),
-          supabase.from('profiles').select('id, email, full_name, role, updated_at'),
+          supabase.from('admin_users').select('role').eq('user_id', user.id).maybeSingle(),
         ]);
 
         if (moviesResult.error) throw moviesResult.error;
@@ -200,22 +238,91 @@ export default function Home() {
           setMyRequests(myRequestsResult.data);
         }
 
-        if (!adminRequestsResult.error && adminRequestsResult.data && isAdmin) {
-          setRequests(adminRequestsResult.data);
+        const adminFlag = Boolean(
+          adminUserResult.data?.role === 'admin' || isAdminUser(profileResult.data || user)
+        );
+        setIsAdmin(adminFlag);
+
+        if (adminFlag) {
+          const [
+            adminRequestsResult,
+            inviteResult,
+            usersResult,
+            adminRequestsMetaResult,
+            adminMoviesResult,
+            adminMetricsResult,
+            adminUsersResult,
+          ] = await Promise.all([
+            supabase
+              .from('requests')
+              .select(
+                'id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id'
+              )
+              .order('created_at', { ascending: false }),
+            supabase.from('invites').select('*').order('created_at', { ascending: false }),
+            supabase.from('profiles').select('id, email, full_name, role, updated_at'),
+            supabase.from('admin_requests').select('id, request_id, status, assigned_to, notes'),
+            supabase
+              .from('admin_movies')
+              .select('id, status, notes, movie_id, movies (title, availability, popularity)')
+              .order('created_at', { ascending: false }),
+            supabase.from('admin_metrics').select('*').order('recorded_at', { ascending: false }).limit(25),
+            supabase.from('admin_users').select('id, user_id, role, created_at, updated_at'),
+          ]);
+
+          if (!adminRequestsResult.error && adminRequestsResult.data) {
+            const adminRequestMap = new Map(
+              (adminRequestsMetaResult.data || []).map((entry) => [entry.request_id, entry])
+            );
+            setRequests(
+              (adminRequestsResult.data || []).map((request) => ({
+                ...request,
+                admin: adminRequestMap.get(request.id) || null,
+              }))
+            );
+            setAdminRequests(adminRequestsMetaResult.data || []);
+          } else {
+            setRequests([]);
+            setAdminRequests([]);
+          }
+
+          if (!inviteResult.error && inviteResult.data) {
+            setInviteList(inviteResult.data);
+          } else {
+            setInviteList([]);
+          }
+
+          if (!usersResult.error && usersResult.data) {
+            setUsers(usersResult.data);
+          } else {
+            setUsers([]);
+          }
+
+          if (!adminMoviesResult.error && adminMoviesResult.data) {
+            setAdminMovies(adminMoviesResult.data);
+          } else {
+            setAdminMovies([]);
+          }
+
+          if (!adminMetricsResult.error && adminMetricsResult.data) {
+            setAdminMetrics(adminMetricsResult.data);
+          } else {
+            setAdminMetrics([]);
+          }
+
+          if (!adminUsersResult.error && adminUsersResult.data) {
+            setAdminUsers(adminUsersResult.data);
+          } else {
+            setAdminUsers([]);
+          }
         } else {
           setRequests([]);
-        }
-
-        if (!inviteResult.error && inviteResult.data && isAdmin) {
-          setInviteList(inviteResult.data);
-        } else {
           setInviteList([]);
-        }
-
-        if (!usersResult.error && usersResult.data && isAdmin) {
-          setUsers(usersResult.data);
-        } else {
           setUsers([]);
+          setAdminRequests([]);
+          setAdminMovies([]);
+          setAdminMetrics([]);
+          setAdminUsers([]);
         }
 
         setLoadingMessage('');
@@ -226,7 +333,7 @@ export default function Home() {
     };
 
     loadData();
-  }, [isAdmin, user]);
+  }, [user]);
 
   const availableYears = useMemo(() => {
     const years = [...new Set(movies.map((movie) => movie.year).filter(Boolean))];
@@ -259,7 +366,7 @@ export default function Home() {
         ...(movie.genres || []),
         movie.type,
         movie.director,
-        ...(movie.cast || []),
+        ...(movie.castMembers || []),
         movie.usbLocation,
       ]
         .filter(Boolean)
@@ -346,20 +453,30 @@ export default function Home() {
     setRequestStatus('');
     if (!supabase || !user || !selectedMovie) return;
 
-    const { error: requestError } = await supabase.from('requests').insert([
-      {
-        movie_id: selectedMovie.id,
-        user_id: user.id,
-        requester_email: user.email,
-        message: requestMessage,
-        delivery_method: deliveryMethod,
-        status: 'OPEN',
-      },
-    ]);
+    const { data: requestRow, error: requestError } = await supabase
+      .from('requests')
+      .insert([
+        {
+          movie_id: selectedMovie.id,
+          user_id: user.id,
+          requester_email: user.email,
+          message: requestMessage,
+          delivery_method: deliveryMethod,
+          status: 'OPEN',
+        },
+      ])
+      .select('*')
+      .single();
 
     if (requestError) {
       setRequestStatus(requestError.message || 'Unable to submit request.');
       return;
+    }
+
+    if (requestRow?.id) {
+      await supabase
+        .from('admin_requests')
+        .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
     }
 
     setRequestStatus('Request submitted. Track updates on the My Requests tab.');
@@ -394,10 +511,15 @@ export default function Home() {
       data: { full_name: payload.full_name, avatar_url: payload.avatar_url, bio: payload.bio, role: payload.role },
     });
 
-    if (profileError || authError) {
-      setError(profileError?.message || authError?.message || 'Unable to update profile.');
-    } else {
+    if (!profileError && !authError) {
+      if (payload.role === 'admin') {
+        await supabase.from('admin_users').upsert({ user_id: user.id, role: 'admin' });
+      } else {
+        await supabase.from('admin_users').delete().eq('user_id', user.id);
+      }
       setStatusMessage('Profile saved.');
+    } else {
+      setError(profileError?.message || authError?.message || 'Unable to update profile.');
     }
     setIsSavingProfile(false);
   };
@@ -447,14 +569,27 @@ export default function Home() {
 
   const handleRequestStatusUpdate = async (requestId, status) => {
     if (!supabase) return;
-    await supabase.from('requests').update({ status }).eq('id', requestId);
-    const { data: updatedRequests } = await supabase
-      .from('requests')
-      .select(
-        'id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id'
-      )
-      .order('created_at', { ascending: false });
-    setRequests(updatedRequests || []);
+    await Promise.all([
+      supabase.from('requests').update({ status }).eq('id', requestId),
+      supabase.from('admin_requests').upsert({ request_id: requestId, status }),
+    ]);
+    const [updatedRequests, updatedAdminMeta] = await Promise.all([
+      supabase
+        .from('requests')
+        .select('id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id')
+        .order('created_at', { ascending: false }),
+      supabase.from('admin_requests').select('id, request_id, status, assigned_to, notes'),
+    ]);
+    if (!updatedRequests.error) {
+      const meta = new Map((updatedAdminMeta.data || []).map((entry) => [entry.request_id, entry]));
+      setRequests(
+        (updatedRequests.data || []).map((request) => ({
+          ...request,
+          admin: meta.get(request.id) || null,
+        }))
+      );
+      setAdminRequests(updatedAdminMeta.data || []);
+    }
   };
 
   const handleAddMovie = async (event) => {
@@ -467,22 +602,36 @@ export default function Home() {
     const payload = {
       title: newMovieForm.title,
       genre: newMovieForm.genre,
+      genres: parseList(newMovieForm.genresText),
       type: newMovieForm.type,
       availability: newMovieForm.availability,
       year: Number(newMovieForm.year) || null,
       runtime: newMovieForm.runtime,
       rating: newMovieForm.rating,
       description: newMovieForm.description,
+      detail: newMovieForm.detail,
       director: newMovieForm.director,
       trailer_id: newMovieForm.trailerId,
       usb_location: newMovieForm.usbLocation,
+      platform: newMovieForm.platform,
+      cast_members: parseList(newMovieForm.castMembersText),
+      gallery: parseList(newMovieForm.galleryText),
+      watch_options: parseWatchOptions(newMovieForm.watchOptionsText),
       poster: newMovieForm.poster,
     };
 
-    const { error: insertError } = await supabase.from('movies').insert([payload]);
+    const { data: inserted, error: insertError } = await supabase
+      .from('movies')
+      .insert([payload])
+      .select('*')
+      .single();
     if (insertError) {
       setStatusMessage(insertError.message || 'Unable to add movie.');
       return;
+    }
+
+    if (inserted?.id && isAdmin) {
+      await supabase.from('admin_movies').upsert({ movie_id: inserted.id, status: 'ACTIVE', notes: '' });
     }
 
     const { data: refreshed } = await supabase.from('movies').select('*').order('popularity', { ascending: false });
@@ -496,10 +645,16 @@ export default function Home() {
       runtime: '',
       rating: 'PG-13',
       description: '',
+      detail: '',
       director: '',
       trailerId: '',
       usbLocation: '',
+      platform: '',
       poster: '',
+      genresText: '',
+      castMembersText: '',
+      galleryText: '',
+      watchOptionsText: '',
     });
     setStatusMessage('Movie added.');
   };
@@ -512,6 +667,7 @@ export default function Home() {
     () => ['browse', 'watchlist', 'requests', 'profile', ...(isAdmin ? ['admin'] : [])],
     [isAdmin]
   );
+  const adminUserIds = useMemo(() => new Set((adminUsers || []).map((entry) => entry.user_id)), [adminUsers]);
 
   if (!supabase) {
     return (
@@ -691,11 +847,13 @@ export default function Home() {
                               <p className="eyebrow">Selected title</p>
                               <h2>{movie.title}</h2>
                               <p>{movie.description}</p>
+                              {movie.detail && <p className="subtext">{movie.detail}</p>}
                               <div className="detail-meta">
                                 <span>{movie.genre}</span>
                                 <span>{movie.type}</span>
                                 <span>{movie.year}</span>
                                 <span>{movie.rating}</span>
+                                {movie.platform && <span>Platform: {movie.platform}</span>}
                                 {movie.usbLocation && <span>USB: {movie.usbLocation}</span>}
                               </div>
                             </div>
@@ -726,7 +884,7 @@ export default function Home() {
                             </div>
                             <div className="detail-card">
                               <h3>Cast & crew</h3>
-                              <p>{(movie.cast || []).join(' · ')}</p>
+                              <p>{(movie.castMembers || []).join(' · ')}</p>
                             </div>
                             <div className="detail-card">
                               <h3>Ratings</h3>
@@ -822,10 +980,11 @@ export default function Home() {
                             <div className="detail-card">
                               <h3>Watch options</h3>
                               <ul className="option-list">
-                                {(movie.watchOptions || []).map((option) => (
-                                  <li key={option.platform}>
+                                {(movie.watchOptions || []).map((option, index) => (
+                                  <li key={`${option.platform}-${index}`}>
                                     <strong>{option.platform}</strong>
-                                    <span>{option.detail}</span>
+                                    {option.detail && <span>{option.detail}</span>}
+                                    {option.instruction && <span>{option.instruction}</span>}
                                   </li>
                                 ))}
                               </ul>
@@ -840,6 +999,16 @@ export default function Home() {
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
                                   />
+                                </div>
+                              </div>
+                            )}
+                            {(movie.gallery || []).length > 0 && (
+                              <div className="detail-card media-stack">
+                                <h3>Gallery</h3>
+                                <div className="media-grid">
+                                  {movie.gallery.map((image, index) => (
+                                    <img key={`${image}-${index}`} src={image} alt={`${movie.title} still ${index + 1}`} />
+                                  ))}
                                 </div>
                               </div>
                             )}
@@ -984,6 +1153,33 @@ export default function Home() {
             <div className="admin-card">
               <div className="admin-card-header">
                 <div>
+                  <h3>Admin metrics</h3>
+                  <p>Live stats sourced from admin_metrics.</p>
+                </div>
+              </div>
+              <ul className="admin-list">
+                {adminMetrics.map((metric) => (
+                  <li key={metric.id}>
+                    <div>
+                      <strong>{metric.metric}</strong>
+                      <div className="admin-tags">
+                        <span className="admin-pill">{metric.value ?? 'n/a'}</span>
+                        <span className="admin-pill muted">
+                          {metric.recorded_at ? new Date(metric.recorded_at).toLocaleString() : ''}
+                        </span>
+                      </div>
+                      {metric.metadata && Object.keys(metric.metadata).length > 0 && (
+                        <p className="subtext">{JSON.stringify(metric.metadata)}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+                {adminMetrics.length === 0 && <p className="status">No metrics recorded yet.</p>}
+              </ul>
+            </div>
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
                   <h3>Invitations</h3>
                   <p>Create and revoke invite codes.</p>
                 </div>
@@ -1101,6 +1297,32 @@ export default function Home() {
                       onChange={(event) => setNewMovieForm((prev) => ({ ...prev, runtime: event.target.value }))}
                     />
                   </label>
+                  <label>
+                    Platform
+                    <input
+                      type="text"
+                      value={newMovieForm.platform}
+                      onChange={(event) => setNewMovieForm((prev) => ({ ...prev, platform: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Genres (comma-separated)
+                    <input
+                      type="text"
+                      value={newMovieForm.genresText}
+                      onChange={(event) => setNewMovieForm((prev) => ({ ...prev, genresText: event.target.value }))}
+                    />
+                  </label>
+                  <label>
+                    Cast members (comma-separated)
+                    <input
+                      type="text"
+                      value={newMovieForm.castMembersText}
+                      onChange={(event) =>
+                        setNewMovieForm((prev) => ({ ...prev, castMembersText: event.target.value }))
+                      }
+                    />
+                  </label>
                 </div>
                 <label>
                   Director
@@ -1135,6 +1357,14 @@ export default function Home() {
                   />
                 </label>
                 <label>
+                  Gallery image URLs (comma-separated)
+                  <input
+                    type="text"
+                    value={newMovieForm.galleryText}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, galleryText: event.target.value }))}
+                  />
+                </label>
+                <label>
                   Description
                   <textarea
                     rows="3"
@@ -1142,8 +1372,54 @@ export default function Home() {
                     onChange={(event) => setNewMovieForm((prev) => ({ ...prev, description: event.target.value }))}
                   />
                 </label>
+                <label>
+                  Detail / synopsis
+                  <textarea
+                    rows="3"
+                    value={newMovieForm.detail}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, detail: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Watch options (one per line: Platform | Detail | Instruction)
+                  <textarea
+                    rows="3"
+                    value={newMovieForm.watchOptionsText}
+                    onChange={(event) => setNewMovieForm((prev) => ({ ...prev, watchOptionsText: event.target.value }))}
+                    placeholder="USB | Stored in Vault 2 | Ask admin for pickup"
+                  />
+                </label>
                 <button type="submit">Save movie</button>
               </form>
+            </div>
+
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>Catalog status</h3>
+                  <p>Admin oversight of each movie record.</p>
+                </div>
+              </div>
+              <ul className="admin-list">
+                {adminMovies.map((entry) => (
+                  <li key={entry.id}>
+                    <div>
+                      <strong>{entry.movies?.title || renderMovieTitle(entry.movie_id)}</strong>
+                      <div className="admin-tags">
+                        <span className="admin-pill">{entry.status}</span>
+                        {entry.movies?.availability && (
+                          <span className="admin-pill muted">{entry.movies.availability}</span>
+                        )}
+                        {entry.movies?.popularity !== undefined && (
+                          <span className="admin-pill muted">Popularity: {entry.movies.popularity}</span>
+                        )}
+                      </div>
+                      {entry.notes && <p className="subtext">{entry.notes}</p>}
+                    </div>
+                  </li>
+                ))}
+                {adminMovies.length === 0 && <p className="status">No admin catalog entries yet.</p>}
+              </ul>
             </div>
 
             <div className="admin-card">
@@ -1162,8 +1438,13 @@ export default function Home() {
                       <div className="admin-tags">
                         <span className="admin-pill">{request.status}</span>
                         <span className="admin-pill muted">{request.delivery_method}</span>
+                        {request.admin?.status && <span className="admin-pill">Admin: {request.admin.status}</span>}
+                        {request.admin?.assigned_to && (
+                          <span className="admin-pill muted">Owner: {renderUserName(request.admin.assigned_to)}</span>
+                        )}
                       </div>
                       {request.message && <p className="subtext">{request.message}</p>}
+                      {request.admin?.notes && <p className="subtext">{request.admin.notes}</p>}
                     </div>
                     <div className="admin-row-actions">
                       <button type="button" onClick={() => handleRequestStatusUpdate(request.id, 'APPROVED')}>
@@ -1197,15 +1478,43 @@ export default function Home() {
                       <strong>{member.full_name || member.email}</strong>
                       <span>{member.email}</span>
                       <div className="admin-tags">
-                        <span className="admin-pill">{member.role || 'member'}</span>
+                        <span className="admin-pill">
+                          {member.role || (adminUserIds.has(member.id) ? 'admin' : 'member')}
+                        </span>
                         <span className="admin-pill muted">
                           Updated {member.updated_at ? new Date(member.updated_at).toLocaleString() : 'n/a'}
                         </span>
+                        {adminUserIds.has(member.id) && <span className="admin-pill">Admin</span>}
                       </div>
                     </div>
                   </li>
                 ))}
                 {users.length === 0 && <p className="status">No users found.</p>}
+              </ul>
+            </div>
+
+            <div className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h3>Admin team</h3>
+                  <p>Accounts with elevated permissions.</p>
+                </div>
+              </div>
+              <ul className="admin-list">
+                {adminUsers.map((adminUser) => (
+                  <li key={adminUser.id}>
+                    <div>
+                      <strong>{renderUserName(adminUser.user_id)}</strong>
+                      <div className="admin-tags">
+                        <span className="admin-pill">{adminUser.role}</span>
+                        <span className="admin-pill muted">
+                          Updated {adminUser.updated_at ? new Date(adminUser.updated_at).toLocaleString() : 'n/a'}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+                {adminUsers.length === 0 && <p className="status">No admin users configured.</p>}
               </ul>
             </div>
           </div>
