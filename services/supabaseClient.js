@@ -13,4 +13,8 @@ const adminIds = (process.env.NEXT_PUBLIC_ADMIN_IDS || process.env.ADMIN_IDS || 
 export const ADMIN_USER_IDS = new Set(['ae8d08c2-43e1-4fb1-b75d-0d9bd989f632', ...adminIds]);
 
 export const isAdminUser = (user) =>
-  Boolean(user?.role === 'admin' || (user?.user_metadata?.role && user.user_metadata.role === 'admin') || (user?.id && ADMIN_USER_IDS.has(user.id)));
+  Boolean(
+    user?.role === 'admin' ||
+      (user?.user_metadata?.role && user.user_metadata.role === 'admin') ||
+      (user?.id && ADMIN_USER_IDS.has(user.id))
+  );
