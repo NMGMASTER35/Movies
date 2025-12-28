@@ -1,10 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+import { supabase } from '../../../services/supabaseClient';
 
 export default async function handler(req, res) {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Supabase is not configured.' });
+  }
+
   if (req.method === 'POST') {
-    const { movieId, userId, type, message, deliveryMethod } = req.body;
+    const { movieId, userId, type, message, deliveryMethod, requesterEmail } = req.body;
 
     const { data, error } = await supabase
       .from('requests')
@@ -12,6 +14,7 @@ export default async function handler(req, res) {
         {
           movie_id: movieId,
           user_id: userId,
+          requester_email: requesterEmail || null,
           type: type,
           status: 'OPEN',
           message: message,

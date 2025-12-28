@@ -111,21 +111,48 @@ export const getSessionUser = () => {
     return null;
   }
 
-  const sessionId = window.localStorage.getItem(SESSION_KEY);
-  if (!sessionId) {
+  const storedSession = window.localStorage.getItem(SESSION_KEY);
+  if (!storedSession) {
     return null;
   }
 
-  const { users } = loadLocalState();
-  return users.find((user) => user.id === sessionId) || null;
+  try {
+    const parsed = JSON.parse(storedSession);
+    if (parsed?.user?.id) {
+      return parsed.user;
+    }
+
+    const sessionId = parsed?.id || parsed;
+    if (!sessionId) {
+      return null;
+    }
+
+    const { users } = loadLocalState();
+    return users.find((user) => user.id === sessionId) || null;
+  } catch (_error) {
+    const sessionId = storedSession;
+    const { users } = loadLocalState();
+    return users.find((user) => user.id === sessionId) || null;
+  }
 };
 
-export const persistSessionUser = (userId) => {
+export const persistSessionUser = (user) => {
   if (typeof window === 'undefined') {
     return;
   }
 
-  window.localStorage.setItem(SESSION_KEY, userId);
+  const payload =
+    user && typeof user === 'object'
+      ? { id: user.id, user }
+      : user
+      ? { id: user }
+      : null;
+
+  if (!payload?.id) {
+    return;
+  }
+
+  window.localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
 };
 
 export const clearSessionUser = () => {

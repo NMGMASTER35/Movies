@@ -1,16 +1,18 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+import { supabase } from '../../../services/supabaseClient';
 
 export default async function handler(req, res) {
+  if (!supabase) {
+    return res.status(500).json({ error: 'Supabase is not configured.' });
+  }
+
   if (req.method === 'POST') {
     const { email, password } = req.body;
 
-    const { data, user, error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
-    const authUser = data?.user || user;
+    const authUser = data?.user;
 
     if (error) {
       return res.status(400).json({ error: error.message });

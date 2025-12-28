@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import {
-  clearSupabaseConfig,
-  getSupabaseConfig,
-  saveSupabaseConfig,
-  supabase,
-} from '../services/supabaseClient';
+import { supabase } from '../services/supabaseClient';
 import {
   authenticateLocalUser,
   getSessionUser,
@@ -30,12 +25,8 @@ export default function Home() {
   const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const [configStatus, setConfigStatus] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
-  const [supabaseClient, setSupabaseClient] = useState(supabase);
   const router = useRouter();
 
   const enableDemoMode = () => {
@@ -61,36 +52,6 @@ export default function Home() {
     router.push('/home');
   };
 
-  const handleConfigSave = (event) => {
-    event.preventDefault();
-    setError('');
-    setStatusMessage('');
-    setConfigStatus('');
-
-    if (!supabaseUrl.trim() || !supabaseAnonKey.trim()) {
-      setError('Supabase URL and anon key are required to exit demo mode.');
-      return;
-    }
-
-    const client = saveSupabaseConfig({ url: supabaseUrl, anonKey: supabaseAnonKey });
-
-    if (!client) {
-      setError('Unable to initialize Supabase. Double-check your credentials and try again.');
-      return;
-    }
-
-    setSupabaseClient(client);
-    setConfigStatus('Supabase connected! You can also use local accounts at any time.');
-  };
-
-  const handleConfigClear = () => {
-    clearSupabaseConfig();
-    setSupabaseClient(null);
-    setSupabaseUrl('');
-    setSupabaseAnonKey('');
-    setConfigStatus('Supabase settings cleared. Running in local-only mode.');
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -104,10 +65,10 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      if (supabaseClient) {
+      if (supabase) {
         const response = isLogin
-          ? await supabaseClient.auth.signInWithPassword({ email, password })
-          : await supabaseClient.auth.signUp({
+          ? await supabase.auth.signInWithPassword({ email, password })
+          : await supabase.auth.signUp({
               email,
               password,
               options: {
@@ -126,10 +87,12 @@ export default function Home() {
           return;
         }
 
-        if (!authUser) {
+        if (!authUser?.id) {
           setError('Unable to validate your account. Please try again.');
           return;
         }
+
+        persistSessionUser(authUser);
 
         if (isLogin) {
           setStatusMessage('Welcome back!');
@@ -161,17 +124,6 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const storedConfig = getSupabaseConfig();
-
-    if (storedConfig?.url) {
-      setSupabaseUrl(storedConfig.url);
-    }
-    if (storedConfig?.anonKey) {
-      setSupabaseAnonKey(storedConfig.anonKey);
-    }
-  }, []);
-
-  useEffect(() => {
     const activeUser = getSessionUser();
     if (activeUser) {
       setStatusMessage('Resuming your session...');
@@ -188,12 +140,12 @@ export default function Home() {
           <p className="subtext">Log in or activate your invite to start browsing.</p>
         </div>
 
-        {!supabaseClient && (
+        {!supabase && (
           <div className="demo-banner" role="status">
             <strong>Local mode</strong>
             <p>
-              No Supabase credentials detected. You can use fully local accounts or connect Supabase to sync
-              data across devices.
+              No Supabase credentials detected. You can use fully local accounts or configure
+              NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to sync data across devices.
             </p>
           </div>
         )}
@@ -214,36 +166,6 @@ export default function Home() {
             Activate Account
           </button>
         </div>
-
-        {!supabaseClient && (
-          <form className="auth-form" onSubmit={handleConfigSave}>
-            <label>
-              Supabase URL
-              <input
-                type="url"
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrl}
-                onChange={(event) => setSupabaseUrl(event.target.value)}
-              />
-            </label>
-            <label>
-              Supabase anon key
-              <input
-                type="text"
-                placeholder="Paste anon key"
-                value={supabaseAnonKey}
-                onChange={(event) => setSupabaseAnonKey(event.target.value)}
-              />
-            </label>
-            <button type="submit" className="secondary">
-              Connect Supabase (optional)
-            </button>
-            <button type="button" className="secondary" onClick={handleConfigClear}>
-              Reset to local-only mode
-            </button>
-            {configStatus && <p className="status">{configStatus}</p>}
-          </form>
-        )}
 
         <form onSubmit={handleSubmit} className="auth-form">
           {!isLogin && (
