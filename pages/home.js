@@ -1297,16 +1297,16 @@ export default function Home() {
                 </div>
                 <div className="pill muted">{filteredMovies.length} titles</div>
               </div>
-            <div className="movie-grid">
-              {filteredMovies.map((movie) => {
-                const isSelected = selectedMovie?.id === movie.id;
-                const rating = ratings.find((entry) => entry.movie_id === movie.id)?.rating || '';
-                const socialReviews = userReviews.filter((review) => review.movie_id === movie.id);
-                const myExistingReview = socialReviews.find((review) => review.user_id === user?.id);
-                const draftRating = reviewDrafts[movie.id]?.rating ?? myExistingReview?.rating ?? '';
-                const draftComment = reviewDrafts[movie.id]?.comment ?? myExistingReview?.comment ?? '';
-                const listsContainingMovie = userListItems.filter((entry) => entry.movie_id === movie.id);
-                const myLists = userLists.filter((list) => list.user_id === user?.id);
+              <div className="movie-grid">
+                {filteredMovies.map((movie) => {
+                  const isSelected = selectedMovie?.id === movie.id;
+                  const rating = ratings.find((entry) => entry.movie_id === movie.id)?.rating || '';
+                  const socialReviews = userReviews.filter((review) => review.movie_id === movie.id);
+                  const myExistingReview = socialReviews.find((review) => review.user_id === user?.id);
+                  const draftRating = reviewDrafts[movie.id]?.rating ?? myExistingReview?.rating ?? '';
+                  const draftComment = reviewDrafts[movie.id]?.comment ?? myExistingReview?.comment ?? '';
+                  const listsContainingMovie = userListItems.filter((entry) => entry.movie_id === movie.id);
+                  const myLists = userLists.filter((list) => list.user_id === user?.id);
 
                 return (
                   <div key={movie.id} className="movie-grid-item">
@@ -1622,10 +1622,11 @@ export default function Home() {
                   </div>
                 );
               })}
+              </div>
+              {filteredMovies.length === 0 && (
+                <p className="status">No matches found. Try adjusting your filters.</p>
+              )}
             </div>
-            {filteredMovies.length === 0 && (
-              <p className="status">No matches found. Try adjusting your filters.</p>
-            )}
           </section>
         </>
       )}
