@@ -8,7 +8,16 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { email, password } = req.body;
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    let data;
+    let error;
+
+    if (typeof supabase.auth.signInWithPassword === 'function') {
+      ({ data, error } = await supabase.auth.signInWithPassword({ email, password }));
+    } else {
+      const response = await supabase.auth.signIn({ email, password });
+      data = response?.data ?? { user: response?.user, session: response?.session };
+      error = response?.error;
+    }
     const authUser = data?.user;
 
     if (error) {
