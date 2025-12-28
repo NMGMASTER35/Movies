@@ -122,7 +122,26 @@ export default function Index() {
         supabase.from('invites').update({ used_at: new Date().toISOString(), used_by: data.user.id }).eq('id', invite.id),
       ]);
 
-      setStatusMessage('Account created. Check your email to confirm and then sign in.');
+      let activationMessage = 'Account created. Check your email to confirm and then sign in.';
+      if (data.user?.id) {
+        try {
+          const response = await fetch('/api/auth/confirm-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: data.user.id }),
+          });
+          const confirmation = await response.json();
+          if (response.ok && confirmation?.user) {
+            activationMessage = 'Account activated. You can sign in now.';
+          } else if (confirmation?.error) {
+            activationMessage = `${activationMessage} (${confirmation.error})`;
+          }
+        } catch (confirmationError) {
+          activationMessage = confirmationError.message || activationMessage;
+        }
+      }
+
+      setStatusMessage(activationMessage);
       setIsLogin(true);
     } catch (submitError) {
       setError(submitError.message || 'Unable to process your request.');
