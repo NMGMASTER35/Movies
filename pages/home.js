@@ -150,6 +150,7 @@ export default function Home() {
   const [deliveryMethod, setDeliveryMethod] = useState('USB');
   const [requestStatus, setRequestStatus] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
   const userMap = useMemo(() => {
@@ -1071,58 +1072,102 @@ export default function Home() {
       </div>
     );
   }
-
   return (
-    <div className="home-page">
-      <nav className="top-nav">
-        <div className="logo">N&M Movies</div>
-        <div className="nav-links">
+    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : ''}`}>
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <button type="button" className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+            ✕
+          </button>
+          <div className="logo">N&M Movies</div>
+          <p className="subtext">Cinematic, private, curated.</p>
+        </div>
+        <nav className="sidebar-nav">
           {navTabs.map((tab) => (
             <button
               key={tab}
               type="button"
-              className={activeTab === tab ? 'active' : ''}
-              onClick={() => handleTabChange(tab)}
+              className={`nav-pill ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => {
+                handleTabChange(tab);
+                setSidebarOpen(false);
+              }}
             >
-              {tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              <span className="nav-label">{tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
             </button>
           ))}
-        </div>
-        {profile && (
-          <div className="user-menu">
-            <button
-              type="button"
-              className="user-chip user-trigger"
-              onClick={() => setUserMenuOpen((open) => !open)}
-            >
-              <span>{profile.full_name || user?.email}</span>
-              {isAdmin && <span className="admin-badge">Admin</span>}
-              <span className="chevron">▾</span>
-            </button>
-            {userMenuOpen && (
-              <div className="user-dropdown">
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('profile')}
-                >
-                  Profile
-                </button>
-                <button type="button" onClick={handleSignOut}>
-                  Sign out
-                </button>
-              </div>
-            )}
+        </nav>
+        {isAdmin && (
+          <div className="sidebar-section">
+            <p className="eyebrow">Admin</p>
+            <div className="sidebar-tags">
+              <span className="badge muted">Catalog</span>
+              <span className="badge muted">Requests</span>
+              <span className="badge muted">Users</span>
+            </div>
           </div>
         )}
-      </nav>
+      </aside>
 
-      {loadingMessage && <p className="status">{loadingMessage}</p>}
-      {statusMessage && <p className="status">{statusMessage}</p>}
-      {error && <p className="error">{error}</p>}
+      <div className="app-main">
+        <header className="app-topbar">
+          <div className="topbar-left">
+            <button
+              type="button"
+              className="ghost-toggle"
+              aria-label="Open navigation"
+              onClick={() => setSidebarOpen(true)}
+            >
+              ☰
+            </button>
+            <div className="topbar-search">
+              <input
+                type="text"
+                placeholder="Search movies, genres, or people"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
+          </div>
+          {profile && (
+            <div className="topbar-actions">
+              <div className="user-menu">
+                <button
+                  type="button"
+                  className="user-chip user-trigger"
+                  onClick={() => setUserMenuOpen((open) => !open)}
+                >
+                  <span className="avatar chip small">{(profile.full_name || user?.email || 'U').charAt(0)}</span>
+                  <span>{profile.full_name || user?.email}</span>
+                  {isAdmin && <span className="admin-badge">Admin</span>}
+                  <span className="chevron">▾</span>
+                </button>
+                {userMenuOpen && (
+                  <div className="user-dropdown">
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('profile')}
+                    >
+                      Profile
+                    </button>
+                    <button type="button" onClick={handleSignOut}>
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </header>
+
+        {loadingMessage && <p className="status">{loadingMessage}</p>}
+        {statusMessage && <p className="status">{statusMessage}</p>}
+        {error && <p className="error">{error}</p>}
 
       {activeTab === 'browse' && (
         <>
-          <section className="hero">
+          <section className="hero cinematic-hero" style={{ '--hero-image': `url(${featured.poster})` }}>
+            <div className="hero-overlay" />
             <div className="hero-content">
               <p className="eyebrow">Featured</p>
               <h1>{featured.title || 'Welcome to N&M Movies'}</h1>
@@ -1132,16 +1177,23 @@ export default function Home() {
                 <span>{featured.year}</span>
                 <span>{featured.rating}</span>
               </div>
-              {featured.trailerId && (
-                <a
-                  className="primary"
-                  href={`https://www.youtube.com/watch?v=${featured.trailerId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Watch trailer
-                </a>
-              )}
+              <div className="hero-actions">
+                {featured.trailerId && (
+                  <a
+                    className="primary"
+                    href={`https://www.youtube.com/watch?v=${featured.trailerId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Watch trailer
+                  </a>
+                )}
+                {featured.availability === 'Request' && (
+                  <button type="button" className="secondary" onClick={() => setSelectedMovie(featured)}>
+                    Request
+                  </button>
+                )}
+              </div>
             </div>
             {featured.poster && (
               <div className="hero-poster">
@@ -1150,56 +1202,101 @@ export default function Home() {
             )}
           </section>
 
-          <section className="controls">
-            <div className="search">
-              <input
-                type="text"
-                placeholder="Search by title, genre, or location"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
+          <section className="content-section streaming-rows">
+            <div className="row-header">
+              <div>
+                <p className="eyebrow">Spotlight</p>
+                <h2>Cinematic picks</h2>
+              </div>
             </div>
-            <div className="filters">
-              <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
-                {availableGenres.map((genre) => (
-                  <option key={genre} value={genre}>
-                    {genre}
-                  </option>
-                ))}
-              </select>
-              <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)}>
-                {availableTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-              <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
-                {availableYears.map((year) => (
-                  <option key={year} value={year}>
-                    {year === 'All' ? 'All years' : year}
-                  </option>
-                ))}
-              </select>
-              <select value={selectedScore} onChange={(event) => setSelectedScore(event.target.value)}>
-                {ratingFilters.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-                {sortOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+            <div className="scroll-row">
+              {filteredMovies.slice(0, 12).map((movie) => (
+                <button
+                  key={`trend-${movie.id}`}
+                  type="button"
+                  className="rail-card"
+                  onClick={() => setSelectedMovie((prev) => (prev?.id === movie.id ? null : movie))}
+                >
+                  <img src={movie.poster} alt={movie.title} loading="lazy" />
+                  <div className="rail-info">
+                    <h3>{movie.title}</h3>
+                    <p>{[movie.genre, movie.year].filter(Boolean).join(' • ')}</p>
+                  </div>
+                </button>
+              ))}
             </div>
           </section>
 
-          <section className="catalog">
-            <h2>Browse the catalog</h2>
+          <section className="discover-layout">
+            <div className="filter-panel">
+              <div className="panel-header">
+                <div>
+                  <p className="eyebrow">Filters</p>
+                  <h3>Refine results</h3>
+                </div>
+              </div>
+              <div className="filter-grid">
+                <label>
+                  Genre
+                  <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
+                    {availableGenres.map((genre) => (
+                      <option key={genre} value={genre}>
+                        {genre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Type
+                  <select value={selectedType} onChange={(event) => setSelectedType(event.target.value)}>
+                    {availableTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Year
+                  <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
+                    {availableYears.map((year) => (
+                      <option key={year} value={year}>
+                        {year === 'All' ? 'All years' : year}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Score
+                  <select value={selectedScore} onChange={(event) => setSelectedScore(event.target.value)}>
+                    {ratingFilters.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Sort
+                  <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                    {sortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="catalog">
+              <div className="section-header">
+                <div>
+                  <p className="eyebrow">Discover</p>
+                  <h2>Browse the catalog</h2>
+                </div>
+                <div className="pill muted">{filteredMovies.length} titles</div>
+              </div>
             <div className="movie-grid">
               {filteredMovies.map((movie) => {
                 const isSelected = selectedMovie?.id === movie.id;
@@ -2475,21 +2572,22 @@ export default function Home() {
         </section>
       )}
 
-      <nav className="mobile-nav">
-        {navTabs.map((tab) => {
-          const label = tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1);
-          return (
-            <button
-              key={tab}
-              type="button"
-              className={activeTab === tab ? 'active' : ''}
-              onClick={() => handleTabChange(tab)}
-            >
-              <span className="mobile-nav-label">{label}</span>
-            </button>
-          );
-        })}
-      </nav>
+        <nav className="mobile-nav">
+          {navTabs.map((tab) => {
+            const label = tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1);
+            return (
+              <button
+                key={tab}
+                type="button"
+                className={activeTab === tab ? 'active' : ''}
+                onClick={() => handleTabChange(tab)}
+              >
+                <span className="mobile-nav-label">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
     </div>
   );
 }
