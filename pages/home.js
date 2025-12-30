@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import { supabase, isAdminUser } from '../services/supabaseClient';
 
+const POSTER_PLACEHOLDER = 'https://via.placeholder.com/480x720.png?text=N%26M+Movies';
+
 const normalizeMovie = (movie) => ({
   id: movie.id,
   title: movie.title,
@@ -22,7 +24,7 @@ const normalizeMovie = (movie) => ({
     : movie.watch_options && typeof movie.watch_options === 'object'
       ? [movie.watch_options]
       : [],
-  poster: movie.poster || 'https://via.placeholder.com/300x450.png?text=N%26M+Movies',
+  poster: movie.poster || POSTER_PLACEHOLDER,
   director: movie.director || '',
   castMembers: Array.isArray(movie.cast_members) ? movie.cast_members : [],
   gallery: Array.isArray(movie.gallery) ? movie.gallery : [],
@@ -67,7 +69,7 @@ export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [activeTab, setActiveTab] = useState('browse');
+  const [activeTab, setActiveTab] = useState('home');
   const [isAdmin, setIsAdmin] = useState(false);
   const [movies, setMovies] = useState([]);
   const [selectedMovie, setSelectedMovie] = useState(null);
@@ -75,6 +77,8 @@ export default function Home() {
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedYear, setSelectedYear] = useState('All');
+  const [selectedPlatform, setSelectedPlatform] = useState('All');
+  const [selectedAvailability, setSelectedAvailability] = useState('All');
   const [selectedScore, setSelectedScore] = useState('All');
   const [sortBy, setSortBy] = useState('popularity');
   const [watchlist, setWatchlist] = useState([]);
@@ -112,6 +116,7 @@ export default function Home() {
   const [deletingMovieId, setDeletingMovieId] = useState(null);
   const [users, setUsers] = useState([]);
   const [loadingMessage, setLoadingMessage] = useState('Loading your account…');
+  const [isLoading, setIsLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -339,6 +344,7 @@ export default function Home() {
       setError(
         'Supabase is not configured. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.'
       );
+      setIsLoading(false);
       return;
     }
 
@@ -352,6 +358,7 @@ export default function Home() {
       const currentUser = data?.session?.user;
       if (!currentUser) {
         router.replace('/');
+        setIsLoading(false);
         return;
       }
 
@@ -572,7 +579,7 @@ export default function Home() {
       }
     };
 
-    loadData();
+    loadData().finally(() => setIsLoading(false));
   }, [user]);
 
   useEffect(() => {
@@ -625,6 +632,19 @@ export default function Home() {
     return ['All', ...Array.from(types).sort()];
   }, [movies]);
 
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set();
+    movies.forEach((movie) => movie.platform && platforms.add(movie.platform));
+    (movies || []).forEach((movie) => (movie.watchOptions || []).forEach((option) => option.platform && platforms.add(option.platform)));
+    return ['All', ...Array.from(platforms).sort()];
+  }, [movies]);
+
+  const availableAvailability = useMemo(() => {
+    const values = new Set();
+    movies.forEach((movie) => movie.availability && values.add(movie.availability));
+    return ['All', ...Array.from(values).sort()];
+  }, [movies]);
+
   const filteredMovies = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     const minScore = selectedScore === 'All' ? null : Number(selectedScore);
@@ -649,8 +669,22 @@ export default function Home() {
       const matchesType = selectedType === 'All' || movie.type === selectedType;
       const matchesYear = selectedYear === 'All' || movie.year === Number(selectedYear);
       const matchesScore = minScore === null || movie.score >= minScore;
+      const matchesPlatform =
+        selectedPlatform === 'All' ||
+        movie.platform === selectedPlatform ||
+        (movie.watchOptions || []).some((option) => option.platform === selectedPlatform);
+      const matchesAvailability =
+        selectedAvailability === 'All' || movie.availability === selectedAvailability;
 
-      return matchesSearch && matchesGenre && matchesType && matchesYear && matchesScore;
+      return (
+        matchesSearch &&
+        matchesGenre &&
+        matchesType &&
+        matchesYear &&
+        matchesScore &&
+        matchesPlatform &&
+        matchesAvailability
+      );
     });
 
     return filtered.sort((a, b) => {
@@ -666,9 +700,28 @@ export default function Home() {
           return b.popularity - a.popularity;
       }
     });
-  }, [movies, searchTerm, selectedGenre, selectedType, selectedYear, selectedScore, sortBy]);
+  }, [
+    movies,
+    searchTerm,
+    selectedGenre,
+    selectedType,
+    selectedYear,
+    selectedScore,
+    selectedPlatform,
+    selectedAvailability,
+    sortBy,
+  ]);
 
-  const featured = movies.find((movie) => movie.featured) || movies[0] || {};
+  const featured =
+    movies.find((movie) => movie.featured) ||
+    movies[0] ||
+    {
+      title: 'Welcome to N&M Movies',
+      description: 'Browse the curated catalog and request deliveries.',
+      poster: POSTER_PLACEHOLDER,
+      availability: 'Request',
+      score: 0,
+    };
 
   const renderMovieTitle = (movieId) => movieMap.get(movieId)?.title || 'Unknown';
   const renderMovieMeta = (movieId) => {
@@ -954,6 +1007,13 @@ export default function Home() {
 
   const handleRequestStatusUpdate = async (requestId, status) => {
     if (!supabase) return;
+    if (
+      status === 'REJECTED' &&
+      typeof window !== 'undefined' &&
+      !window.confirm('Reject this request? The requester will see the status change.')
+    ) {
+      return;
+    }
     await Promise.all([
       supabase.from('requests').update({ status }).eq('id', requestId),
       supabase.from('admin_requests').upsert({ request_id: requestId, status }),
@@ -1152,6 +1212,9 @@ export default function Home() {
 
   const handleDeleteMovie = async (movieId) => {
     if (!supabase) return;
+    if (typeof window !== 'undefined' && !window.confirm('Delete this movie? This cannot be undone.')) {
+      return;
+    }
     setDeletingMovieId(movieId);
 
     const { error: deleteError } = await supabase.from('movies').delete().eq('id', movieId);
@@ -1180,7 +1243,14 @@ export default function Home() {
   };
 
   const navTabs = useMemo(
-    () => ['browse', 'feed', 'community', 'watchlist', 'requests', 'profile', ...(isAdmin ? ['admin'] : [])],
+    () => [
+      { key: 'home', label: 'Home' },
+      { key: 'browse', label: 'Browse' },
+      { key: 'watchlist', label: 'Watchlist' },
+      { key: 'requests', label: 'Requests' },
+      { key: 'profile', label: 'Profile' },
+      ...(isAdmin ? [{ key: 'admin', label: 'Admin' }] : []),
+    ],
     [isAdmin]
   );
   const adminUserIds = useMemo(() => new Set((adminUsers || []).map((entry) => entry.user_id)), [adminUsers]);
@@ -1257,15 +1327,15 @@ export default function Home() {
         <nav className="sidebar-nav">
           {navTabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.key}
               type="button"
-              className={`nav-pill ${activeTab === tab ? 'active' : ''}`}
+              className={`nav-pill ${activeTab === tab.key ? 'active' : ''}`}
               onClick={() => {
-                handleTabChange(tab);
+                handleTabChange(tab.key);
                 setSidebarOpen(false);
               }}
             >
-              <span className="nav-label">{tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
+              <span className="nav-label">{tab.label}</span>
             </button>
           ))}
         </nav>
@@ -1299,6 +1369,18 @@ export default function Home() {
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
+            </div>
+            <div className="topbar-nav">
+              {navTabs.map((tab) => (
+                <button
+                  key={`top-${tab.key}`}
+                  type="button"
+                  className={`topbar-link ${activeTab === tab.key ? 'active' : ''}`}
+                  onClick={() => handleTabChange(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
           {profile && (
@@ -1335,6 +1417,251 @@ export default function Home() {
         {loadingMessage && <p className="status">{loadingMessage}</p>}
         {statusMessage && <p className="status">{statusMessage}</p>}
         {error && <p className="error">{error}</p>}
+        {isLoading && (
+          <div className="loading-panel">
+            <div className="loading-spinner" aria-hidden="true" />
+            <p className="subtext">Preparing your personalized N&M Movies experience…</p>
+          </div>
+        )}
+
+      {activeTab === 'home' && (
+        <>
+          <section className="hero cinematic-hero spotlight-hero" style={{ '--hero-image': `url(${featured.poster})` }}>
+            <div className="hero-overlay" />
+            <div className="hero-content">
+              <p className="eyebrow">Welcome back</p>
+              <h1>N&M Movies</h1>
+              <p className="subtext">
+                Explore a modern, private catalog with curated picks, fresh requests, and fast watchlist access.
+              </p>
+              <div className="hero-meta">
+                <span>{movies.length} titles</span>
+                <span>{watchlist.length} saved</span>
+                <span>{requests.length + myRequests.length} requests tracked</span>
+              </div>
+              <div className="hero-actions">
+                <button type="button" className="primary" onClick={() => handleTabChange('browse')}>
+                  Browse catalog
+                </button>
+                <button type="button" className="secondary" onClick={() => handleTabChange('watchlist')}>
+                  View watchlist
+                </button>
+              </div>
+            </div>
+            {featured.poster && (
+              <div className="hero-poster">
+                <img src={featured.poster} alt={featured.title} loading="lazy" decoding="async" />
+                <div className="hero-chip">
+                  <span className="badge">{featured.availability || 'Request'}</span>
+                  <span className="movie-score">★ {featured.score.toFixed(1)}</span>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="content-section home-filters">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">Search & refine</p>
+                <h2>Find something to watch</h2>
+                <p className="subtext">Use the upgraded search bar and filters to quickly pinpoint the right title.</p>
+              </div>
+            </div>
+            <div className="filter-toolbar">
+              <input
+                className="pill-input"
+                type="search"
+                placeholder="Search by title, actor, or keyword"
+                value={searchTerm}
+                onChange={(event) => {
+                  setActiveTab('home');
+                  setSearchTerm(event.target.value);
+                }}
+              />
+              <div className="quick-filters">
+                <button type="button" onClick={() => setSelectedScore('8')}>
+                  ★ 8+ Rated
+                </button>
+                <button type="button" onClick={() => setSelectedAvailability('Streaming')}>
+                  Streaming now
+                </button>
+                <button type="button" onClick={() => setSelectedAvailability('Request')}>
+                  Requestable
+                </button>
+                <button type="button" onClick={() => setSortBy('newest')}>
+                  Newest first
+                </button>
+              </div>
+            </div>
+            <div className="filter-chip-row">
+              <select value={selectedGenre} onChange={(event) => setSelectedGenre(event.target.value)}>
+                {availableGenres.map((genre) => (
+                  <option key={`home-genre-${genre}`} value={genre}>
+                    {genre}
+                  </option>
+                ))}
+              </select>
+              <select value={selectedPlatform} onChange={(event) => setSelectedPlatform(event.target.value)}>
+                {availablePlatforms.map((platform) => (
+                  <option key={`home-platform-${platform}`} value={platform}>
+                    {platform === 'All' ? 'All platforms' : platform}
+                  </option>
+                ))}
+              </select>
+              <select value={selectedYear} onChange={(event) => setSelectedYear(event.target.value)}>
+                {availableYears.map((year) => (
+                  <option key={`home-year-${year}`} value={year}>
+                    {year === 'All' ? 'All years' : year}
+                  </option>
+                ))}
+              </select>
+              <select value={selectedAvailability} onChange={(event) => setSelectedAvailability(event.target.value)}>
+                {availableAvailability.map((availability) => (
+                  <option key={`home-availability-${availability}`} value={availability}>
+                    {availability === 'All' ? 'All availability' : availability}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="home-grid">
+              <div className="tile">
+                <div className="tile-header">
+                  <div>
+                    <p className="eyebrow">Top picks</p>
+                    <h3>Featured & trending</h3>
+                  </div>
+                  <button type="button" className="secondary" onClick={() => handleTabChange('browse')}>
+                    Open full browse
+                  </button>
+                </div>
+                <div className="movie-grid mini-grid">
+                  {(filteredMovies || []).slice(0, 6).map((movie) => (
+                    <div key={`home-tile-${movie.id}`} className="movie-card compact">
+                      <div className="poster-frame">
+                        <img src={movie.poster || POSTER_PLACEHOLDER} alt={movie.title} loading="lazy" />
+                        <div className="poster-overlay">
+                          <span className="movie-score">★ {movie.score.toFixed(1)}</span>
+                          <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
+                            {movie.availability}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="movie-info">
+                        <h3>{movie.title}</h3>
+                        <p>{[movie.year, movie.genre, movie.platform || 'Platform TBD'].filter(Boolean).join(' • ')}</p>
+                      </div>
+                      <div className="card-actions">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => {
+                            setSelectedMovie(movie);
+                            handleTabChange('browse');
+                          }}
+                        >
+                          View details
+                        </button>
+                        <button
+                          type="button"
+                          className={watchlist.includes(movie.id) ? 'secondary' : 'primary'}
+                          onClick={() => toggleWatchlist(movie.id)}
+                        >
+                          {watchlist.includes(movie.id) ? 'Saved' : 'Add to watchlist'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredMovies.length === 0 && (
+                    <p className="status">No matches yet. Adjust filters to explore more titles.</p>
+                  )}
+                </div>
+              </div>
+              <div className="tile stacked">
+                <div className="tile-header">
+                  <div>
+                    <p className="eyebrow">My activity</p>
+                    <h3>Watchlist & requests</h3>
+                  </div>
+                </div>
+                <div className="mini-list">
+                  <div className="mini-card">
+                    <div>
+                      <strong>Watchlist</strong>
+                      <p className="subtext">{watchlist.length} saved titles</p>
+                    </div>
+                    <button type="button" className="secondary" onClick={() => handleTabChange('watchlist')}>
+                      Open
+                    </button>
+                  </div>
+                  <div className="mini-card">
+                    <div>
+                      <strong>Requests</strong>
+                      <p className="subtext">{myRequests.length || 0} active submissions</p>
+                    </div>
+                    <button type="button" className="secondary" onClick={() => handleTabChange('requests')}>
+                      Track
+                    </button>
+                  </div>
+                  <div className="mini-card">
+                    <div>
+                      <strong>Favorites</strong>
+                      <p className="subtext">{favorites.length} pinned</p>
+                    </div>
+                    <button type="button" className="secondary" onClick={() => handleTabChange('watchlist')}>
+                      View
+                    </button>
+                  </div>
+                </div>
+                <div className="mini-list">
+                  <div className="mini-card muted">
+                    <p className="subtext">Need something new? Submit a request or browse by platform.</p>
+                    <button type="button" className="primary" onClick={() => handleTabChange('browse')}>
+                      Browse platforms
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="tile stacked">
+                <div className="tile-header">
+                  <div>
+                    <p className="eyebrow">Community pulse</p>
+                    <h3>Latest reviews</h3>
+                  </div>
+                </div>
+                <div className="feed-grid tight">
+                  {socialFeed.length === 0 && <p className="status">No activity yet. Follow members to see updates.</p>}
+                  {socialFeed.slice(0, 5).map((activity) => {
+                    const actorProfile = userMap.get(activity.actor_id) || {};
+                    return (
+                      <div key={`home-feed-${activity.id || activity.created_at}`} className="feed-card compact">
+                        <div className="feed-meta">
+                          <div className="avatar chip small">
+                            {actorProfile.avatar_url ? (
+                              <img src={actorProfile.avatar_url} alt={renderUserName(activity.actor_id)} />
+                            ) : (
+                              <span>{(renderUserName(activity.actor_id) || 'U').charAt(0)}</span>
+                            )}
+                          </div>
+                          <div>
+                            <strong>{renderUserName(activity.actor_id)}</strong>
+                            <p className="subtext">
+                              {activity.created_at ? new Date(activity.created_at).toLocaleString() : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="feed-text">{describeActivity(activity)}</p>
+                        {activity.movie_id && (
+                          <p className="feed-detail">Movie: {renderMovieTitle(activity.movie_id)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
 
       {activeTab === 'browse' && (
         <>
@@ -1369,7 +1696,7 @@ export default function Home() {
             </div>
             {featured.poster && (
               <div className="hero-poster">
-                <img src={featured.poster} alt={featured.title} />
+                <img src={featured.poster} alt={featured.title} loading="lazy" decoding="async" />
               </div>
             )}
           </section>
@@ -1449,6 +1776,29 @@ export default function Home() {
                   </select>
                 </label>
                 <label>
+                  Platform
+                  <select value={selectedPlatform} onChange={(event) => setSelectedPlatform(event.target.value)}>
+                    {availablePlatforms.map((platform) => (
+                      <option key={platform} value={platform}>
+                        {platform === 'All' ? 'All platforms' : platform}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Availability
+                  <select
+                    value={selectedAvailability}
+                    onChange={(event) => setSelectedAvailability(event.target.value)}
+                  >
+                    {availableAvailability.map((availability) => (
+                      <option key={availability} value={availability}>
+                        {availability === 'All' ? 'All availability' : availability}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   Sort
                   <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
                     {sortOptions.map((option) => (
@@ -1487,17 +1837,21 @@ export default function Home() {
                       className={`movie-card ${isSelected ? 'selected' : ''}`}
                       onClick={() => setSelectedMovie((prev) => (prev?.id === movie.id ? null : movie))}
                     >
-                      <img src={movie.poster} alt={movie.title} loading="lazy" />
-                      <div className="movie-info">
-                        <h3>{movie.title}</h3>
-                        <p>
-                          {movie.genre} • {movie.type}
-                        </p>
-                        <div className="movie-tags">
+                      <div className="poster-frame">
+                        <img src={movie.poster || POSTER_PLACEHOLDER} alt={movie.title} loading="lazy" />
+                        <div className="poster-overlay">
                           <span className="movie-score">★ {movie.score.toFixed(1)}</span>
                           <span className={`badge ${movie.availability === 'Request' ? 'warning' : ''}`}>
                             {movie.availability}
                           </span>
+                        </div>
+                      </div>
+                      <div className="movie-info">
+                        <h3>{movie.title}</h3>
+                        <p>{[movie.genre, movie.type, movie.year].filter(Boolean).join(' • ')}</p>
+                        <div className="movie-tags">
+                          {movie.platform && <span className="pill muted">{movie.platform}</span>}
+                          {movie.runtime && <span className="pill muted">{movie.runtime}</span>}
                         </div>
                       </div>
                       <span className="movie-card-chevron" aria-hidden="true">
@@ -1514,15 +1868,19 @@ export default function Home() {
                               <p>{movie.description}</p>
                               {movie.detail && <p className="subtext">{movie.detail}</p>}
                               <div className="detail-meta">
+                                <span>{movie.availability}</span>
                                 <span>{movie.genre}</span>
                                 <span>{movie.type}</span>
                                 <span>{movie.year}</span>
                                 <span>{movie.rating}</span>
+                                {movie.runtime && <span>{movie.runtime}</span>}
                                 {movie.platform && <span>Platform: {movie.platform}</span>}
                                 {movie.usbLocation && <span>USB: {movie.usbLocation}</span>}
                               </div>
                             </div>
-                            {movie.poster && <img src={movie.poster} alt={movie.title} />}
+                            {movie.poster && (
+                              <img src={movie.poster || POSTER_PLACEHOLDER} alt={movie.title} loading="lazy" decoding="async" />
+                            )}
                           </div>
 
                           <div className="detail-sections">
@@ -1731,11 +2089,17 @@ export default function Home() {
                             {(movie.gallery || []).length > 0 && (
                               <div className="detail-card media-stack">
                                 <h3>Gallery</h3>
-                                <div className="media-grid">
-                                  {movie.gallery.map((image, index) => (
-                                    <img key={`${image}-${index}`} src={image} alt={`${movie.title} still ${index + 1}`} />
-                                  ))}
-                                </div>
+                              <div className="media-grid">
+                                {movie.gallery.map((image, index) => (
+                                  <img
+                                    key={`${image}-${index}`}
+                                    src={image}
+                                    alt={`${movie.title} still ${index + 1}`}
+                                    loading="lazy"
+                                    decoding="async"
+                                  />
+                                ))}
+                              </div>
                               </div>
                             )}
                             <div className="detail-card">
@@ -2826,19 +3190,16 @@ export default function Home() {
       )}
 
         <nav className="mobile-nav">
-          {navTabs.map((tab) => {
-            const label = tab === 'admin' ? 'Admin' : tab.charAt(0).toUpperCase() + tab.slice(1);
-            return (
-              <button
-                key={tab}
-                type="button"
-                className={activeTab === tab ? 'active' : ''}
-                onClick={() => handleTabChange(tab)}
-              >
-                <span className="mobile-nav-label">{label}</span>
-              </button>
-            );
-          })}
+          {navTabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              className={activeTab === tab.key ? 'active' : ''}
+              onClick={() => handleTabChange(tab.key)}
+            >
+              <span className="mobile-nav-label">{tab.label}</span>
+            </button>
+          ))}
         </nav>
       </div>
     </div>
