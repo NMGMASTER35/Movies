@@ -149,6 +149,13 @@ export default function Home() {
   const [requestMessage, setRequestMessage] = useState('');
   const [deliveryMethod, setDeliveryMethod] = useState('USB');
   const [requestStatus, setRequestStatus] = useState('');
+  const [customRequestForm, setCustomRequestForm] = useState({
+    title: '',
+    year: '',
+    details: '',
+    deliveryMethod: 'USB',
+  });
+  const [customRequestStatus, setCustomRequestStatus] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -670,6 +677,64 @@ export default function Home() {
     return [movie.genre, movie.type, movie.year].filter(Boolean).join(' • ');
   };
 
+  const parseCustomRequestDetails = (message) => {
+    if (!message || !message.startsWith('[CUSTOM_TITLE_REQUEST]')) {
+      return null;
+    }
+
+    const details = {};
+    message
+      .split('\n')
+      .slice(1)
+      .forEach((line) => {
+        const [label, ...rest] = line.split(':');
+        if (!rest.length) return;
+        const value = rest.join(':').trim();
+        switch (label.trim().toLowerCase()) {
+          case 'title':
+            details.title = value;
+            break;
+          case 'year':
+            details.year = value;
+            break;
+          case 'details':
+            details.details = value;
+            break;
+          case 'preferred delivery':
+            details.deliveryMethod = value;
+            break;
+          default:
+            break;
+        }
+      });
+
+    return details.title ? details : null;
+  };
+
+  const renderRequestTitle = (request) => {
+    const custom = parseCustomRequestDetails(request.message || '');
+    if (custom?.title) {
+      return `Requested: ${custom.title}${custom.year ? ` (${custom.year})` : ''}`;
+    }
+    return renderMovieTitle(request.movie_id);
+  };
+
+  const renderRequestMeta = (request) => {
+    const custom = parseCustomRequestDetails(request.message || '');
+    if (custom?.title) {
+      return ['Custom title request', custom.deliveryMethod || request.delivery_method].filter(Boolean).join(' • ');
+    }
+    return renderMovieMeta(request.movie_id);
+  };
+
+  const renderRequestNotes = (request) => {
+    const custom = parseCustomRequestDetails(request.message || '');
+    if (custom?.title) {
+      return custom.details || 'No additional details provided.';
+    }
+    return request.message;
+  };
+
   const toggleWatchlist = async (movieId) => {
     if (!supabase || !user) return;
 
@@ -744,6 +809,63 @@ export default function Home() {
 
     setRequestStatus('Request submitted. Track updates on the My Requests tab.');
     setRequestMessage('');
+
+    const { data: refreshed } = await supabase
+      .from('requests')
+      .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setMyRequests(refreshed || []);
+  };
+
+  const handleCustomRequestSubmit = async (event) => {
+    event.preventDefault();
+    setCustomRequestStatus('');
+
+    if (!supabase || !user) return;
+    if (!customRequestForm.title.trim()) {
+      setCustomRequestStatus('Please add the movie title you want to request.');
+      return;
+    }
+
+    const message = [
+      '[CUSTOM_TITLE_REQUEST]',
+      `Title: ${customRequestForm.title.trim()}`,
+      customRequestForm.year.trim() ? `Year: ${customRequestForm.year.trim()}` : null,
+      `Preferred delivery: ${customRequestForm.deliveryMethod}`,
+      customRequestForm.details.trim() ? `Details: ${customRequestForm.details.trim()}` : null,
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const { data: requestRow, error: requestError } = await supabase
+      .from('requests')
+      .insert([
+        {
+          movie_id: null,
+          user_id: user.id,
+          requester_email: user.email,
+          message,
+          delivery_method: customRequestForm.deliveryMethod,
+          status: 'OPEN',
+        },
+      ])
+      .select('*')
+      .single();
+
+    if (requestError) {
+      setCustomRequestStatus(requestError.message || 'Unable to submit request.');
+      return;
+    }
+
+    if (requestRow?.id) {
+      await supabase
+        .from('admin_requests')
+        .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
+    }
+
+    setCustomRequestStatus('Request submitted. We will notify you once it is available.');
+    setCustomRequestForm({ title: '', year: '', details: '', deliveryMethod: 'USB' });
 
     const { data: refreshed } = await supabase
       .from('requests')
@@ -1932,18 +2054,70 @@ export default function Home() {
               <p>Every submission from this account appears here with live status.</p>
             </div>
           </div>
+          <div className="detail-card">
+            <h3>Request a movie we don’t have yet</h3>
+            <p className="subtext">Can’t find a title? Send the details below and we’ll add it to the queue.</p>
+            <form className="profile-form" onSubmit={handleCustomRequestSubmit}>
+              <label>
+                Movie title
+                <input
+                  type="text"
+                  value={customRequestForm.title}
+                  onChange={(event) =>
+                    setCustomRequestForm((prev) => ({ ...prev, title: event.target.value }))
+                  }
+                  placeholder="The film you want to watch"
+                />
+              </label>
+              <label>
+                Release year (optional)
+                <input
+                  type="text"
+                  value={customRequestForm.year}
+                  onChange={(event) => setCustomRequestForm((prev) => ({ ...prev, year: event.target.value }))}
+                  placeholder="2024"
+                />
+              </label>
+              <label>
+                Preferred delivery
+                <select
+                  value={customRequestForm.deliveryMethod}
+                  onChange={(event) =>
+                    setCustomRequestForm((prev) => ({ ...prev, deliveryMethod: event.target.value }))
+                  }
+                >
+                  <option value="USB">USB</option>
+                  <option value="Private Link">Private Link</option>
+                  <option value="Remote Session">Remote Session</option>
+                </select>
+              </label>
+              <label>
+                Notes for the admins
+                <textarea
+                  rows="3"
+                  value={customRequestForm.details}
+                  onChange={(event) => setCustomRequestForm((prev) => ({ ...prev, details: event.target.value }))}
+                  placeholder="Tell us which cut, actors, or subtitles you prefer."
+                />
+              </label>
+              <button type="submit" className="primary">
+                Submit custom request
+              </button>
+              {customRequestStatus && <p className="status">{customRequestStatus}</p>}
+            </form>
+          </div>
           <div className="list-grid">
             {myRequests.length === 0 && <p className="status">No requests yet. Choose a title to submit one.</p>}
             {myRequests.map((request) => (
               <div key={request.id} className="list-card">
                 <div>
-                  <h3>{renderMovieTitle(request.movie_id)}</h3>
-                  <p>{renderMovieMeta(request.movie_id)}</p>
+                  <h3>{renderRequestTitle(request)}</h3>
+                  <p>{renderRequestMeta(request)}</p>
                   <div className="admin-tags">
                     <span className="admin-pill">{request.status}</span>
                     <span className="admin-pill muted">{request.delivery_method}</span>
                   </div>
-                  {request.message && <p className="subtext">{request.message}</p>}
+                  {renderRequestNotes(request) && <p className="subtext">{renderRequestNotes(request)}</p>}
                 </div>
                 <small className="subtext">
                   Created {new Date(request.created_at || '').toLocaleString()} • Updated{' '}
@@ -2546,7 +2720,7 @@ export default function Home() {
                         {items.map((request) => (
                           <li key={`${bucketKey}-${request.id}`}>
                             <div>
-                              <strong>{renderMovieTitle(request.movie_id)}</strong>
+                              <strong>{renderRequestTitle(request)}</strong>
                               <span>{request.requester_email}</span>
                               <div className="admin-tags">
                                 <span className="admin-pill">{request.status}</span>
@@ -2556,7 +2730,7 @@ export default function Home() {
                                   <span className="admin-pill muted">Owner: {renderUserName(request.admin.assigned_to)}</span>
                                 )}
                               </div>
-                              {request.message && <p className="subtext">{request.message}</p>}
+                              {renderRequestNotes(request) && <p className="subtext">{renderRequestNotes(request)}</p>}
                               {request.admin?.notes && <p className="subtext">{request.admin.notes}</p>}
                             </div>
                             <div className="admin-row-actions">
