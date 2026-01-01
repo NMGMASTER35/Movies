@@ -163,6 +163,7 @@ export default function Home() {
   const [customRequestStatus, setCustomRequestStatus] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
 
   const movieMap = useMemo(() => new Map(movies.map((movie) => [movie.id, movie])), [movies]);
   const userMap = useMemo(() => {
@@ -325,6 +326,14 @@ export default function Home() {
         return `${actor} shared an update`;
     }
   };
+
+  useEffect(() => {
+    const updateViewport = () => setIsMobileViewport(window.innerWidth <= 768);
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
 
   useEffect(() => {
     if (user && !profile) {
@@ -1370,18 +1379,20 @@ export default function Home() {
                 onChange={(event) => setSearchTerm(event.target.value)}
               />
             </div>
-            <div className="topbar-nav">
-              {navTabs.map((tab) => (
-                <button
-                  key={`top-${tab.key}`}
-                  type="button"
-                  className={`topbar-link ${activeTab === tab.key ? 'active' : ''}`}
-                  onClick={() => handleTabChange(tab.key)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {!isMobileViewport && (
+              <div className="topbar-nav">
+                {navTabs.map((tab) => (
+                  <button
+                    key={`top-${tab.key}`}
+                    type="button"
+                    className={`topbar-link ${activeTab === tab.key ? 'active' : ''}`}
+                    onClick={() => handleTabChange(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           {profile && (
             <div className="topbar-actions">
@@ -3189,18 +3200,20 @@ export default function Home() {
         </section>
       )}
 
-        <nav className="mobile-nav">
-          {navTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              className={activeTab === tab.key ? 'active' : ''}
-              onClick={() => handleTabChange(tab.key)}
-            >
-              <span className="mobile-nav-label">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
+        {isMobileViewport && (
+          <nav className="mobile-nav">
+            {navTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={activeTab === tab.key ? 'active' : ''}
+                onClick={() => handleTabChange(tab.key)}
+              >
+                <span className="mobile-nav-label">{tab.label}</span>
+              </button>
+            ))}
+          </nav>
+        )}
       </div>
     </div>
   );
