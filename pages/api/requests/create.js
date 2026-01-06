@@ -1,31 +1,43 @@
 import { supabase } from '../../../services/supabaseClient';
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
+  }
+
   if (!supabase) {
     return res.status(500).json({ error: 'Supabase is not configured.' });
   }
 
-  if (req.method === 'POST') {
-    const { movieId, userId, type, message, deliveryMethod, requesterEmail } = req.body;
+  const { movieId, userId, type, message, deliveryMethod, requesterEmail } = req.body || {};
 
-    const { data, error } = await supabase
-      .from('requests')
-      .insert([
-        {
-          movie_id: movieId,
-          user_id: userId,
-          type: type,
-          status: 'OPEN',
-          message: message,
-          delivery_method: deliveryMethod,
-          requester_email: requesterEmail || null,
-        },
-      ])
-      .single();
+  if (!userId) {
+    return res.status(400).json({ error: 'User ID is required.' });
+  }
 
-    if (error) return res.status(400).json({ error: error.message });
+  if (!type) {
+    return res.status(400).json({ error: 'Request type is required.' });
+  }
+
+  try {
+    const payload = {
+      movie_id: movieId ?? null,
+      user_id: userId,
+      type,
+      status: 'OPEN',
+      message: message?.trim() || '',
+      delivery_method: deliveryMethod || null,
+      requester_email: requesterEmail || null,
+    };
+
+    const { data, error } = await supabase.from('requests').insert([payload]).select('*').single();
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
 
     return res.status(200).json(data);
+  } catch (creationError) {
+    return res.status(500).json({ error: creationError.message || 'Unable to create request.' });
   }
-  return res.status(405).json({ error: 'Method Not Allowed' });
 }
