@@ -801,12 +801,26 @@ export default function Home() {
     if (!supabase || !user) return;
 
     const isSaved = watchlist.includes(movieId);
+    const previous = watchlist;
+    setStatusMessage('');
+    setError('');
     setWatchlist((prev) => (isSaved ? prev.filter((id) => id !== movieId) : [...prev, movieId]));
 
-    if (isSaved) {
-      await supabase.from('watchlist').delete().eq('user_id', user.id).eq('movie_id', movieId);
-    } else {
-      await supabase.from('watchlist').upsert({ user_id: user.id, movie_id: movieId });
+    try {
+      if (isSaved) {
+        const { error: deleteError } = await supabase.from('watchlist').delete().eq('user_id', user.id).eq('movie_id', movieId);
+        if (deleteError) {
+          throw deleteError;
+        }
+      } else {
+        const { error: upsertError } = await supabase.from('watchlist').upsert({ user_id: user.id, movie_id: movieId });
+        if (upsertError) {
+          throw upsertError;
+        }
+      }
+    } catch (toggleError) {
+      setWatchlist(previous);
+      setError(toggleError.message || 'Unable to update watchlist.');
     }
   };
 
@@ -814,19 +828,36 @@ export default function Home() {
     if (!supabase || !user) return;
 
     const isSaved = favorites.includes(movieId);
+    const previous = favorites;
+    setStatusMessage('');
+    setError('');
     setFavorites((prev) => (isSaved ? prev.filter((id) => id !== movieId) : [...prev, movieId]));
 
-    if (isSaved) {
-      await supabase.from('favorites').delete().eq('user_id', user.id).eq('movie_id', movieId);
-    } else {
-      await supabase.from('favorites').upsert({ user_id: user.id, movie_id: movieId });
+    try {
+      if (isSaved) {
+        const { error: deleteError } = await supabase.from('favorites').delete().eq('user_id', user.id).eq('movie_id', movieId);
+        if (deleteError) {
+          throw deleteError;
+        }
+      } else {
+        const { error: upsertError } = await supabase.from('favorites').upsert({ user_id: user.id, movie_id: movieId });
+        if (upsertError) {
+          throw upsertError;
+        }
+      }
+    } catch (toggleError) {
+      setFavorites(previous);
+      setError(toggleError.message || 'Unable to update favorites.');
     }
   };
 
   const handleRatingChange = async (movieId, rating) => {
     if (!supabase || !user) return;
 
-    const parsedRating = Number(rating);
+    const parsedRating = Math.max(0, Math.min(10, Number(rating)));
+    const previous = ratings;
+    setError('');
+
     setRatings((prev) => {
       const existing = prev.find((entry) => entry.movie_id === movieId);
       if (existing) {
@@ -835,49 +866,65 @@ export default function Home() {
       return [...prev, { movie_id: movieId, rating: parsedRating }];
     });
 
-    await supabase.from('ratings').upsert({ user_id: user.id, movie_id: movieId, rating: parsedRating });
+    const { error: ratingError } = await supabase.from('ratings').upsert({ user_id: user.id, movie_id: movieId, rating: parsedRating });
+    if (ratingError) {
+      setRatings(previous);
+      setError(ratingError.message || 'Unable to save rating.');
+    }
   };
 
   const handleRequestSubmit = async (event) => {
     event.preventDefault();
     setRequestStatus('');
-    if (!supabase || !user || !selectedMovie) return;
-
-    const { data: requestRow, error: requestError } = await supabase
-      .from('requests')
-      .insert([
-        {
-          movie_id: selectedMovie.id,
-          user_id: user.id,
-          requester_email: user.email,
-          message: requestMessage,
-          delivery_method: deliveryMethod,
-          status: 'OPEN',
-        },
-      ])
-      .select('*')
-      .single();
-
-    if (requestError) {
-      setRequestStatus(requestError.message || 'Unable to submit request.');
+    if (!supabase || !user) return;
+    if (!selectedMovie) {
+      setRequestStatus('Choose a movie before submitting a request.');
       return;
     }
 
-    if (requestRow?.id) {
-      await supabase
-        .from('admin_requests')
-        .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
+    try {
+      const { data: requestRow, error: requestError } = await supabase
+        .from('requests')
+        .insert([
+          {
+            movie_id: selectedMovie.id,
+            user_id: user.id,
+            requester_email: user.email,
+            message: requestMessage,
+            delivery_method: deliveryMethod,
+            status: 'OPEN',
+          },
+        ])
+        .select('*')
+        .single();
+
+      if (requestError) {
+        throw requestError;
+      }
+
+      if (requestRow?.id) {
+        const { error: adminError } = await supabase
+          .from('admin_requests')
+          .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
+        if (adminError) {
+          throw adminError;
+        }
+      }
+
+      setRequestStatus('Request submitted. Track updates on the My Requests tab.');
+      setRequestMessage('');
+
+      const { data: refreshed, error: refreshError } = await supabase
+        .from('requests')
+        .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (!refreshError) {
+        setMyRequests(refreshed || []);
+      }
+    } catch (requestError) {
+      setRequestStatus(requestError.message || 'Unable to submit request.');
     }
-
-    setRequestStatus('Request submitted. Track updates on the My Requests tab.');
-    setRequestMessage('');
-
-    const { data: refreshed } = await supabase
-      .from('requests')
-      .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    setMyRequests(refreshed || []);
   };
 
   const handleCustomRequestSubmit = async (event) => {
@@ -900,41 +947,49 @@ export default function Home() {
       .filter(Boolean)
       .join('\n');
 
-    const { data: requestRow, error: requestError } = await supabase
-      .from('requests')
-      .insert([
-        {
-          movie_id: null,
-          user_id: user.id,
-          requester_email: user.email,
-          message,
-          delivery_method: customRequestForm.deliveryMethod,
-          status: 'OPEN',
-        },
-      ])
-      .select('*')
-      .single();
+    try {
+      const { data: requestRow, error: requestError } = await supabase
+        .from('requests')
+        .insert([
+          {
+            movie_id: null,
+            user_id: user.id,
+            requester_email: user.email,
+            message,
+            delivery_method: customRequestForm.deliveryMethod,
+            status: 'OPEN',
+          },
+        ])
+        .select('*')
+        .single();
 
-    if (requestError) {
+      if (requestError) {
+        throw requestError;
+      }
+
+      if (requestRow?.id) {
+        const { error: adminError } = await supabase
+          .from('admin_requests')
+          .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
+        if (adminError) {
+          throw adminError;
+        }
+      }
+
+      setCustomRequestStatus('Request submitted. We will notify you once it is available.');
+      setCustomRequestForm({ title: '', year: '', details: '', deliveryMethod: 'USB' });
+
+      const { data: refreshed, error: refreshError } = await supabase
+        .from('requests')
+        .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (!refreshError) {
+        setMyRequests(refreshed || []);
+      }
+    } catch (requestError) {
       setCustomRequestStatus(requestError.message || 'Unable to submit request.');
-      return;
     }
-
-    if (requestRow?.id) {
-      await supabase
-        .from('admin_requests')
-        .upsert({ request_id: requestRow.id, status: requestRow.status, notes: requestRow.message || '' });
-    }
-
-    setCustomRequestStatus('Request submitted. We will notify you once it is available.');
-    setCustomRequestForm({ title: '', year: '', details: '', deliveryMethod: 'USB' });
-
-    const { data: refreshed } = await supabase
-      .from('requests')
-      .select('id, movie_id, status, delivery_method, message, created_at, updated_at')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    setMyRequests(refreshed || []);
   };
 
   const handleProfileSave = async (event) => {
@@ -982,6 +1037,10 @@ export default function Home() {
       setStatusMessage('Invite email is required.');
       return;
     }
+    if (!isAdmin) {
+      setStatusMessage('Only admins can create invites.');
+      return;
+    }
     const code = `NM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
     const { error: inviteError } = await supabase.from('invites').insert([
       {
@@ -1005,6 +1064,10 @@ export default function Home() {
 
   const handleRevokeInvite = async (inviteId) => {
     if (!supabase) return;
+    if (!isAdmin) {
+      setStatusMessage('Only admins can revoke invites.');
+      return;
+    }
     const { error: revokeError } = await supabase.from('invites').update({ revoked: true }).eq('id', inviteId);
     if (revokeError) {
       setStatusMessage(revokeError.message || 'Unable to revoke invite.');
@@ -1016,6 +1079,10 @@ export default function Home() {
 
   const handleRequestStatusUpdate = async (requestId, status) => {
     if (!supabase) return;
+    if (!isAdmin) {
+      setStatusMessage('Only admins can update requests.');
+      return;
+    }
     if (
       status === 'REJECTED' &&
       typeof window !== 'undefined' &&
@@ -1023,26 +1090,36 @@ export default function Home() {
     ) {
       return;
     }
-    await Promise.all([
-      supabase.from('requests').update({ status }).eq('id', requestId),
-      supabase.from('admin_requests').upsert({ request_id: requestId, status }),
-    ]);
-    const [updatedRequests, updatedAdminMeta] = await Promise.all([
-      supabase
-        .from('requests')
-        .select('id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id')
-        .order('created_at', { ascending: false }),
-      supabase.from('admin_requests').select('id, request_id, status, assigned_to, notes'),
-    ]);
-    if (!updatedRequests.error) {
-      const meta = new Map((updatedAdminMeta.data || []).map((entry) => [entry.request_id, entry]));
-      setRequests(
-        (updatedRequests.data || []).map((request) => ({
-          ...request,
-          admin: meta.get(request.id) || null,
-        }))
-      );
-      setAdminRequests(updatedAdminMeta.data || []);
+    try {
+      const [requestUpdate, adminUpdate] = await Promise.all([
+        supabase.from('requests').update({ status }).eq('id', requestId),
+        supabase.from('admin_requests').upsert({ request_id: requestId, status }),
+      ]);
+      if (requestUpdate.error) {
+        throw requestUpdate.error;
+      }
+      if (adminUpdate.error) {
+        throw adminUpdate.error;
+      }
+      const [updatedRequests, updatedAdminMeta] = await Promise.all([
+        supabase
+          .from('requests')
+          .select('id, movie_id, status, delivery_method, message, created_at, updated_at, requester_email, user_id')
+          .order('created_at', { ascending: false }),
+        supabase.from('admin_requests').select('id, request_id, status, assigned_to, notes'),
+      ]);
+      if (!updatedRequests.error) {
+        const meta = new Map((updatedAdminMeta.data || []).map((entry) => [entry.request_id, entry]));
+        setRequests(
+          (updatedRequests.data || []).map((request) => ({
+            ...request,
+            admin: meta.get(request.id) || null,
+          }))
+        );
+        setAdminRequests(updatedAdminMeta.data || []);
+      }
+    } catch (requestError) {
+      setStatusMessage(requestError.message || 'Unable to update request status.');
     }
   };
 
@@ -1059,11 +1136,15 @@ export default function Home() {
       ]
     );
 
-    if (!moviesError && refreshed) {
+    if (moviesError) {
+      setError(moviesError.message || 'Unable to refresh catalog.');
+    } else if (refreshed) {
       setMovies((refreshed || []).map(normalizeMovie));
     }
 
-    if (!adminMoviesError && adminCatalog) {
+    if (adminMoviesError) {
+      setStatusMessage(adminMoviesError.message || 'Unable to refresh admin catalog.');
+    } else if (adminCatalog) {
       setAdminMovies(adminCatalog || []);
     }
   };
@@ -1072,6 +1153,10 @@ export default function Home() {
     event.preventDefault();
     if (!supabase || !newMovieForm.title) {
       setStatusMessage('Title is required.');
+      return;
+    }
+    if (!isAdmin) {
+      setStatusMessage('Only admins can add movies.');
       return;
     }
 
@@ -1096,44 +1181,50 @@ export default function Home() {
       poster: newMovieForm.poster,
     };
 
-    const { data: inserted, error: insertError } = await supabase
-      .from('movies')
-      .insert([payload])
-      .select('*')
-      .single();
-    if (insertError) {
+    try {
+      const { data: inserted, error: insertError } = await supabase
+        .from('movies')
+        .insert([payload])
+        .select('*')
+        .single();
+      if (insertError) {
+        throw insertError;
+      }
+
+      if (inserted?.id) {
+        const { error: adminInsertError } = await supabase
+          .from('admin_movies')
+          .upsert({ movie_id: inserted.id, status: 'ACTIVE', notes: '' });
+        if (adminInsertError) {
+          throw adminInsertError;
+        }
+      }
+
+      setNewMovieForm({
+        title: '',
+        genre: 'Action',
+        type: 'Movie',
+        availability: 'Request',
+        year: new Date().getFullYear(),
+        runtime: '',
+        rating: 'PG-13',
+        description: '',
+        detail: '',
+        director: '',
+        trailerId: '',
+        usbLocation: '',
+        platform: '',
+        poster: '',
+        genresText: '',
+        castMembersText: '',
+        galleryText: '',
+        watchOptionsText: '',
+      });
+      await refreshCatalogData();
+      setStatusMessage('Movie added.');
+    } catch (insertError) {
       setStatusMessage(insertError.message || 'Unable to add movie.');
-      return;
     }
-
-    if (inserted?.id && isAdmin) {
-      await supabase.from('admin_movies').upsert({ movie_id: inserted.id, status: 'ACTIVE', notes: '' });
-    }
-
-    const { data: refreshed } = await supabase.from('movies').select('*').order('popularity', { ascending: false });
-    setMovies((refreshed || []).map(normalizeMovie));
-    setNewMovieForm({
-      title: '',
-      genre: 'Action',
-      type: 'Movie',
-      availability: 'Request',
-      year: new Date().getFullYear(),
-      runtime: '',
-      rating: 'PG-13',
-      description: '',
-      detail: '',
-      director: '',
-      trailerId: '',
-      usbLocation: '',
-      platform: '',
-      poster: '',
-      genresText: '',
-      castMembersText: '',
-      galleryText: '',
-      watchOptionsText: '',
-    });
-    await refreshCatalogData();
-    setStatusMessage('Movie added.');
   };
 
   const handleEditMovieStart = (movieId) => {
@@ -1183,7 +1274,13 @@ export default function Home() {
   const handleUpdateMovie = async (event) => {
     event.preventDefault();
     if (!supabase || !editingMovie) return;
+    if (!isAdmin) {
+      setStatusMessage('Only admins can update movies.');
+      return;
+    }
     setIsUpdatingMovie(true);
+    setError('');
+    setStatusMessage('');
 
     const payload = {
       title: editMovieForm.title,
@@ -1206,40 +1303,54 @@ export default function Home() {
       poster: editMovieForm.poster,
     };
 
-    const { error: updateError } = await supabase.from('movies').update(payload).eq('id', editingMovie.id);
-    if (updateError) {
-      setStatusMessage(updateError.message || 'Unable to update movie.');
-      setIsUpdatingMovie(false);
-      return;
-    }
+    try {
+      const { error: updateError } = await supabase.from('movies').update(payload).eq('id', editingMovie.id);
+      if (updateError) {
+        throw updateError;
+      }
 
-    await refreshCatalogData();
-    setEditingMovie(null);
-    setIsUpdatingMovie(false);
-    setStatusMessage('Movie updated.');
+      await refreshCatalogData();
+      setEditingMovie(null);
+      setStatusMessage('Movie updated.');
+    } catch (updateError) {
+      setStatusMessage(updateError.message || 'Unable to update movie.');
+    } finally {
+      setIsUpdatingMovie(false);
+    }
   };
 
   const handleDeleteMovie = async (movieId) => {
     if (!supabase) return;
+    if (!isAdmin) {
+      setStatusMessage('Only admins can delete movies.');
+      return;
+    }
     if (typeof window !== 'undefined' && !window.confirm('Delete this movie? This cannot be undone.')) {
       return;
     }
     setDeletingMovieId(movieId);
 
-    const { error: deleteError } = await supabase.from('movies').delete().eq('id', movieId);
-    if (deleteError) {
-      setStatusMessage(deleteError.message || 'Unable to delete movie.');
-      setDeletingMovieId(null);
-      return;
-    }
+    try {
+      const { error: adminDeleteError } = await supabase.from('admin_movies').delete().eq('movie_id', movieId);
+      if (adminDeleteError) {
+        throw adminDeleteError;
+      }
 
-    await supabase.from('admin_movies').delete().eq('movie_id', movieId);
-    await refreshCatalogData();
-    if (editingMovie?.id === movieId) {
-      setEditingMovie(null);
+      const { error: deleteError } = await supabase.from('movies').delete().eq('id', movieId);
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      await refreshCatalogData();
+      if (editingMovie?.id === movieId) {
+        setEditingMovie(null);
+      }
+      setStatusMessage('Movie deleted.');
+    } catch (deleteError) {
+      setStatusMessage(deleteError.message || 'Unable to delete movie.');
+    } finally {
+      setDeletingMovieId(null);
     }
-    setDeletingMovieId(null);
-    setStatusMessage('Movie deleted.');
   };
 
   const handleProfileFieldChange = (field, value) => {
