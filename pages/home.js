@@ -1484,10 +1484,11 @@ export default function Home() {
             </button>
             <div className="topbar-search">
               <input
-                type="text"
+                type="search"
                 placeholder="Search movies, genres, or people"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
+                aria-label="Search the catalog"
               />
             </div>
             {!isMobileViewport && (
@@ -1512,6 +1513,9 @@ export default function Home() {
                   type="button"
                   className="user-chip user-trigger"
                   onClick={() => setUserMenuOpen((open) => !open)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  aria-controls="user-menu"
                 >
                   <span className="avatar chip small">{(profile.full_name || user?.email || 'U').charAt(0)}</span>
                   <span>{profile.full_name || user?.email}</span>
@@ -1519,14 +1523,15 @@ export default function Home() {
                   <span className="chevron">▾</span>
                 </button>
                 {userMenuOpen && (
-                  <div className="user-dropdown">
+                  <div className="user-dropdown" id="user-menu" role="menu">
                     <button
                       type="button"
                       onClick={() => handleTabChange('profile')}
+                      role="menuitem"
                     >
                       Profile
                     </button>
-                    <button type="button" onClick={handleSignOut}>
+                    <button type="button" onClick={handleSignOut} role="menuitem">
                       Sign out
                     </button>
                   </div>
@@ -1601,16 +1606,36 @@ export default function Home() {
                 }}
               />
               <div className="quick-filters">
-                <button type="button" onClick={() => setSelectedScore('8')}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedScore('8')}
+                  className={selectedScore === '8' ? 'is-active' : ''}
+                  aria-pressed={selectedScore === '8'}
+                >
                   ★ 8+ Rated
                 </button>
-                <button type="button" onClick={() => setSelectedAvailability('Streaming')}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAvailability('Streaming')}
+                  className={selectedAvailability === 'Streaming' ? 'is-active' : ''}
+                  aria-pressed={selectedAvailability === 'Streaming'}
+                >
                   Streaming now
                 </button>
-                <button type="button" onClick={() => setSelectedAvailability('Request')}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAvailability('Request')}
+                  className={selectedAvailability === 'Request' ? 'is-active' : ''}
+                  aria-pressed={selectedAvailability === 'Request'}
+                >
                   Requestable
                 </button>
-                <button type="button" onClick={() => setSortBy('newest')}>
+                <button
+                  type="button"
+                  onClick={() => setSortBy('newest')}
+                  className={sortBy === 'newest' ? 'is-active' : ''}
+                  aria-pressed={sortBy === 'newest'}
+                >
                   Newest first
                 </button>
               </div>
@@ -1792,7 +1817,7 @@ export default function Home() {
             <div className="hero-content">
               <p className="eyebrow">Featured</p>
               <h1>{featured.title || 'Welcome to N&M Movies'}</h1>
-              <p>{featured.description || 'Browse the curated catalog and request deliveries.'}</p>
+              <p className="subtext">{featured.description || 'Browse the curated catalog and request deliveries.'}</p>
               <div className="hero-meta">
                 <span>{featured.genre}</span>
                 <span>{featured.year}</span>
@@ -2498,7 +2523,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Your library</p>
               <h2>Watchlist & favorites</h2>
-              <p>Quick access to the titles you’ve pinned.</p>
+              <p className="subtext">Quick access to the titles you’ve pinned.</p>
             </div>
           </div>
           <div className="list-grid">
@@ -2537,7 +2562,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">My Requests</p>
               <h2>Track delivery progress</h2>
-              <p>Every submission from this account appears here with live status.</p>
+              <p className="subtext">Every submission from this account appears here with live status.</p>
             </div>
           </div>
           <div className="detail-card">
@@ -2621,7 +2646,7 @@ export default function Home() {
             <div>
               <p className="eyebrow">Profile</p>
               <h2>Manage your account</h2>
-              <p>Update your details and preferences.</p>
+              <p className="subtext">Update your details and preferences.</p>
             </div>
           </div>
           <form className="profile-form" onSubmit={handleProfileSave}>
