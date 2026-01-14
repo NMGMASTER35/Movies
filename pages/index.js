@@ -160,13 +160,29 @@ export default function Index() {
         </div>
 
         <div className="auth-toggle">
-          <button type="button" className={isLogin ? 'active' : ''} onClick={() => setIsLogin(true)}>
+          <button
+            type="button"
+            className={isLogin ? 'active' : ''}
+            onClick={() => setIsLogin(true)}
+            aria-pressed={isLogin}
+          >
             Login
           </button>
-          <button type="button" className={!isLogin ? 'active' : ''} onClick={() => setIsLogin(false)}>
+          <button
+            type="button"
+            className={!isLogin ? 'active' : ''}
+            onClick={() => setIsLogin(false)}
+            aria-pressed={!isLogin}
+          >
             Activate Invite
           </button>
         </div>
+
+        <p className="auth-helper">
+          {isLogin
+            ? 'Sign in with the email associated with your invite. Need access? Activate your invite first.'
+            : 'Enter the invite code you received along with your name to activate your account.'}
+        </p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           {!isLogin && (
@@ -177,6 +193,7 @@ export default function Index() {
                 placeholder="Nia Thompson"
                 value={fullName}
                 onChange={(event) => setFullName(event.target.value)}
+                autoComplete="name"
               />
             </label>
           )}
@@ -187,6 +204,7 @@ export default function Index() {
               placeholder="you@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
             />
           </label>
           <label>
@@ -196,6 +214,7 @@ export default function Index() {
               placeholder="••••••••"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              autoComplete={isLogin ? 'current-password' : 'new-password'}
             />
           </label>
           {!isLogin && (
@@ -206,6 +225,7 @@ export default function Index() {
                 placeholder="NM-XXXXXX"
                 value={inviteCode}
                 onChange={(event) => setInviteCode(event.target.value)}
+                autoComplete="one-time-code"
               />
             </label>
           )}
@@ -214,8 +234,14 @@ export default function Index() {
           </button>
         </form>
 
-        {error && <p className="error">{error}</p>}
-        {statusMessage && <p className="status">{statusMessage}</p>}
+        <div className="auth-feedback" aria-live="polite">
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          {statusMessage && <p className="status">{statusMessage}</p>}
+        </div>
       </div>
     </div>
   );
