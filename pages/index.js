@@ -68,11 +68,15 @@ export default function Index() {
       setError('Supabase is not configured.');
       return;
     }
-    if (!email || !password) {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    const trimmedInviteCode = inviteCode.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
       setError('Email and password are required.');
       return;
     }
-    if (!isLogin && (!fullName || !inviteCode)) {
+    if (!isLogin && (!fullName || !trimmedInviteCode)) {
       setError('Name and invite code are required to activate your account.');
       return;
     }
@@ -80,7 +84,10 @@ export default function Index() {
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password: trimmedPassword,
+        });
         if (signInError) {
           throw signInError;
         }
@@ -92,15 +99,15 @@ export default function Index() {
         return;
       }
 
-      const invite = await validateInvite(inviteCode.trim());
+      const invite = await validateInvite(trimmedInviteCode);
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: trimmedEmail,
+        password: trimmedPassword,
         options: {
           data: {
             full_name: fullName,
             role: invite.role || 'member',
-            invite_code: inviteCode.trim(),
+            invite_code: trimmedInviteCode,
           },
         },
       });
@@ -111,16 +118,26 @@ export default function Index() {
         throw new Error('Unable to create account.');
       }
 
-      await Promise.all([
+      const [profileResult, inviteResult] = await Promise.all([
         supabase.from('profiles').upsert({
           id: data.user.id,
-          email,
+          email: trimmedEmail,
           full_name: fullName,
           role: invite.role || 'member',
-          invite_code: inviteCode.trim(),
+          invite_code: trimmedInviteCode,
         }),
-        supabase.from('invites').update({ used_at: new Date().toISOString(), used_by: data.user.id }).eq('id', invite.id),
+        supabase
+          .from('invites')
+          .update({ used_at: new Date().toISOString(), used_by: data.user.id })
+          .eq('id', invite.id),
       ]);
+
+      if (profileResult.error) {
+        throw new Error(profileResult.error.message || 'Unable to save your profile.');
+      }
+      if (inviteResult.error) {
+        throw new Error(inviteResult.error.message || 'Unable to mark invite as used.');
+      }
 
       let activationMessage = 'Account created. Check your email to confirm and then sign in.';
       if (data.user?.id) {
